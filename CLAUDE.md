@@ -59,12 +59,12 @@ bizvision-agents/
 - **FastAPI** (async) + **Pydantic v2** + **pydantic-settings**
 - **LangGraph** for agent orchestration (LangChain only where it saves real effort — prefer direct SDK calls)
 - **PostgreSQL 16 + pgvector**, **SQLAlchemy 2.x (async)**, **Alembic** — local: Docker Compose; production: **Neon** (EU, Frankfurt), direct connection string (see ADR-001 in `docs/decisions.md`). Keep SQL portable Postgres: no Neon-specific features in application code.
-- **LLM:** Anthropic Claude via the official `anthropic` SDK, behind `core/llm` abstraction
+- **LLM:** Anthropic Claude via the official `anthropic` SDK, behind `core/llm` abstraction. `temperature` (and other sampling params) is **not sent** to current Claude models — the API rejects it; the argument is kept in signatures/config but ignored (ADR-003).
 - **Embeddings:** provider abstraction in `core/embeddings`; default OpenAI `text-embedding-3-small` (1536 dims)
 - **Crawling/parsing:** `httpx`, `trafilatura`, `pypdf`, `python-docx`
 - **Email:** Resend
 - **Widget:** TypeScript, Vite (library mode → single `widget.js`), no framework, Shadow DOM
-- **Testing:** pytest, pytest-asyncio, respx (HTTP mocking)
+- **Testing:** pytest, pytest-asyncio; HTTP mocked with httpx `MockTransport` (`httpx2.MockTransport` injected via `http_client` for the `anthropic`/`openai` SDKs, which are built on `httpx2`; plain `httpx.MockTransport` for our own httpx clients such as the crawler). respx is not used: it cannot intercept `httpx2`.
 - **Lint/format/type:** ruff (lint + format), pyright (basic mode)
 
 Use the latest stable versions when adding dependencies. Do not add a new dependency without a clear reason; mention it in the commit message.
@@ -130,7 +130,7 @@ cd widget && npm run build                  # → widget/dist/widget.js
 - Type hints everywhere; Pydantic models for all API input/output.
 - Small, focused modules. Prefer plain functions + dataclasses/Pydantic over class hierarchies.
 - Errors: raise domain exceptions in `core/`, map them to HTTP errors in `api/`.
-- Every feature ships with tests. External HTTP (LLM, embeddings, crawler targets, Resend) is mocked in unit tests; integration tests that hit real APIs are marked `@pytest.mark.live` and skipped by default.
+- Every feature ships with tests. External HTTP (LLM, embeddings, crawler targets, Resend) is mocked in unit tests with `MockTransport` (see Tech stack); integration tests that hit real APIs are marked `@pytest.mark.live` and skipped by default.
 - Database changes always via an Alembic migration.
 
 ## How to work in this repo

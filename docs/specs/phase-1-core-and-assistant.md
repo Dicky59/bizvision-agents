@@ -102,7 +102,7 @@ default_language: fi
 assistant:
   model: claude-haiku-5-5          # cheap default; per-tenant override possible
   max_output_tokens: 600
-  temperature: 0.2
+  temperature: 0.2                 # currently ignored: not sent to current Claude models (ADR-003)
   tone: "Asiantunteva, ystävällinen ja ytimekäs. Sinuttelu."
   company_description: >
     BizVision Oy on helsinkiläinen tekoälyautomaatioon ja ohjelmistokehitykseen
@@ -174,8 +174,9 @@ EUR_PER_USD=0.92                # for cost conversion; update occasionally
 - **Budget guard:** `check_budget(tenant_id)` sums `cost_eur` for the current calendar month; if ≥ `monthly_budget_eur`, raise `BudgetExceeded`. Cache the monthly sum for 60 s.
 
 ### 6.3 `core/embeddings`
-- `EmbeddingProvider` protocol: `embed(texts: list[str]) -> list[list[float]]`, batched (≤ 100 per request).
-- `OpenAIEmbeddingProvider` default (`text-embedding-3-small`, 1536 dims). Records `usage_events`.
+- `EmbeddingProvider` protocol: `embed(texts: list[str]) -> EmbeddingResult` (vectors in input order + input token count), batched internally (≤ 100 per request). It has no tenant context and records nothing.
+- `EmbeddingClient.embed(tenant_id, texts, *, conversation_id=None) -> list[list[float]]` is what the rest of the code calls: provider call + one `usage_events` row (operation `embed`).
+- `OpenAIEmbeddingProvider` default (`text-embedding-3-small`, 1536 dims).
 - Dimension is a setting but must match the migration; changing it requires a new migration + reindex (document in `docs/decisions.md`).
 
 ### 6.4 `core/ingest`
