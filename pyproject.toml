@@ -13,10 +13,22 @@ dependencies = [
     "alembic",
     "pgvector",
     "typer",
+    "anthropic>=2.10.0",
+    "openai>=3.55.1",
+    "pyyaml>=6.0.3",
+    "email-validator>=2.4.0",
 ]
 
 [dependency-groups]
-dev = ["pytest", "pytest-asyncio", "respx", "httpx", "ruff", "pyright"]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "respx",
+    "httpx",
+    "ruff",
+    "pyright",
+    "types-pyyaml>=6.0.12.20261113",
+]
 
 [project.scripts]
 bv = "cli.main:app"
