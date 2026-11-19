@@ -27,6 +27,17 @@ Tests use the separate `bv_test` database (`TEST_DATABASE_URL`). It is created b
 volume predates it, either `docker compose down -v && docker compose up -d db` (wipes dev data)
 or run `docker compose exec db psql -U bv -d bv -c "CREATE DATABASE bv_test OWNER bv"`.
 
+Live tests (real Anthropic/OpenAI calls, a few cents; write only to `bv_test`):
+`uv run pytest -m live` — needs `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` in `.env`.
+
+## Tenants
+
+```bash
+uv run bv tenants create bizvision --config tenants/bizvision.yaml   # slug must match the YAML
+uv run bv tenants show bizvision
+uv run bv tenants list
+```
+
 ## Production database (Neon)
 
 Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);
