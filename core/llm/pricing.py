@@ -60,4 +60,4 @@ def cost_eur(model: str, usage: Usage, eur_per_usd: float) -> Decimal:
         + usage.cache_read_tokens * info.cache_read
         + usage.cache_write_tokens * info.cache_write
     ) / 1_000_000
-    return Decimal(str(round(usd * eur_per_usd, 6)))
+    return Decimal(str(round(usd * eur_per_usd, 10)))

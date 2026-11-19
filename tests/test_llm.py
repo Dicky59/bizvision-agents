@@ -372,3 +372,16 @@ async def test_client_refuses_when_over_budget(sessionmaker: SM, tenant_id: uuid
     with pytest.raises(BudgetExceeded):
         await client.complete(**call_kwargs(tenant_id))
     assert rec.requests == []  # provider never called
+
+
+async def test_budget_sums_tiny_costs_with_new_precision(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    for _ in range(1000):
+        await add_usage(sessionmaker, tenant_id, 1.84e-7)
+    await add_usage(sessionmaker, tenant_id, 0.25)
+    spend = await BudgetGuard(sessionmaker).month_spend(tenant_id)
+    assert spend == pytest.approx(0.25 + 1000 * 1.84e-7, abs=1e-9)
+    with pytest.raises(BudgetExceeded):
+        await BudgetGuard(sessionmaker).check(tenant_id, 0.2501)
+    await BudgetGuard(sessionmaker).check(tenant_id, 0.2503)

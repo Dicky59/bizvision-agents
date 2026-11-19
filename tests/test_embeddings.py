@@ -109,3 +109,31 @@ async def test_empty_input_makes_no_call(sessionmaker: SM, tenant_id: uuid.UUID)
     fake = FakeOpenAI()
     assert await EmbeddingClient(fake.provider(), sessionmaker, 0.92).embed(tenant_id, []) == []
     assert fake.batches == []
+
+
+async def test_tiny_embedding_cost_survives_db_round_trip(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    """10 tokens of text-embedding-3-small cost ~1.84e-7 EUR; must not round to 0 (cost_eur is
+    Numeric(18, 10))."""
+    from core.llm.pricing import cost_eur
+    from core.llm.types import Usage
+    from core.llm.usage import record_usage
+
+    cost = cost_eur("text-embedding-3-small", Usage(input_tokens=10), 0.92)
+    assert float(cost) == pytest.approx(10 * 0.02 / 1e6 * 0.92)
+    await record_usage(
+        sessionmaker,
+        tenant_id=tenant_id,
+        operation="embed",
+        provider="openai",
+        model="text-embedding-3-small",
+        usage=Usage(input_tokens=10),
+        cost_eur=cost,
+    )
+    async with sessionmaker() as s:
+        row = (
+            await s.execute(select(UsageEvent).where(UsageEvent.tenant_id == tenant_id))
+        ).scalar_one()
+    assert float(row.cost_eur) > 0
+    assert float(row.cost_eur) == pytest.approx(1.84e-7, rel=1e-6)

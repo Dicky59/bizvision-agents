@@ -158,7 +158,7 @@ class UsageEvent(IdTimestampMixin, Base):
     model: Mapped[str] = mapped_column(String(100), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cost_eur: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    cost_eur: Mapped[float] = mapped_column(Numeric(18, 10), nullable=False, default=0)
     # True when token counts are estimates (e.g. stream closed before the provider reported usage)
     estimated: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")

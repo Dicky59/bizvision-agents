@@ -79,3 +79,4 @@ M2 introduces the only code path to external model providers. Several details of
 - Changing the embedding dimension still needs a migration + reindex (unchanged from ADR-002).
 - `usage_events.input_tokens` includes cache read/write tokens so totals add up; cost uses the per-class prices.
 - Cost reports can distinguish exact from estimated rows via `estimated`.
+- **`usage_events.cost_eur` is `Numeric(18, 10)`** (migration `0003`; was `Numeric(12, 6)`). Found by the live embeddings test: 10 tokens of `text-embedding-3-small` cost about 1.8e-7 EUR and rounded to 0 at 6 decimals, so every short chat-turn query embedding would have been recorded as free. `core/llm/pricing.cost_eur` now rounds to 10 decimals. Monthly budget sums are unaffected in behaviour (covered by a test summing 1000 tiny rows).
