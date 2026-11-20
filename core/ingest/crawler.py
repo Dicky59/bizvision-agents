@@ -60,6 +60,14 @@ class CrawlFailure:
 CrawlItem = CrawledPage | CrawledPdf | CrawlFailure
 
 
+@dataclass
+class CrawlReport:
+    """Filled in by `crawl` when it finishes. `truncated`: max_pages stopped it with URLs left."""
+
+    attempted: int = 0
+    truncated: bool = False
+
+
 def make_client() -> httpx.AsyncClient:
     """Client for the crawler: no automatic redirects (safe_get validates each hop)."""
     return httpx.AsyncClient(
@@ -201,6 +209,7 @@ async def crawl(
     resolver: Resolver = system_resolver,
     delay: float = DEFAULT_DELAY,
     concurrency: int = CONCURRENCY,
+    report: CrawlReport | None = None,
 ) -> AsyncIterator[CrawlItem]:
     """Crawl per tenant ingest config, yielding pages, PDFs (raw bytes) and failures."""
     start_urls = [normalize_url(u) for u in config.start_urls]
@@ -354,6 +363,9 @@ async def crawl(
                 yield item
         if delay > 0 and queue:
             await asyncio.sleep(delay)
+    if report is not None:
+        report.attempted = attempted
+        report.truncated = bool(queue)
 
 
 _WS = re.compile(r"\s+")

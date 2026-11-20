@@ -47,6 +47,30 @@ async def sessionmaker(
     return async_sessionmaker(test_engine, expire_on_commit=False)
 
 
+async def _throwaway_tenant(
+    sessionmaker: async_sessionmaker[AsyncSession], name: str
+) -> AsyncIterator[uuid.UUID]:
+    tid = uuid.uuid4()
+    async with sessionmaker() as s:
+        s.add(Tenant(id=tid, slug=f"t-{tid.hex[:10]}", name=name, public_key=f"pk_{tid.hex}"))
+        await s.commit()
+    try:
+        yield tid
+    finally:
+        async with sessionmaker() as s:
+            await s.execute(delete(Tenant).where(Tenant.id == tid))
+            await s.commit()
+
+
+@pytest.fixture
+async def other_tenant_id(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[uuid.UUID]:
+    """A second throwaway tenant, for cross-tenant isolation tests."""
+    async for tid in _throwaway_tenant(sessionmaker, "Other"):
+        yield tid
+
+
 @pytest.fixture
 async def tenant_id(sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncIterator[uuid.UUID]:
     """A throwaway tenant in bv_test (never the dev DB); cascades its usage_events on cleanup."""

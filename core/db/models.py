@@ -45,6 +45,15 @@ class Source(IdTimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("type IN ('web','file','faq')", name="ck_sources_type"),
         CheckConstraint("status IN ('active','removed','error')", name="ck_sources_status"),
+        # identity: web/faq by uri, file by filename (migration 0004)
+        Index(
+            "uq_sources_identity",
+            "tenant_id",
+            "type",
+            text("(coalesce(uri, filename))"),
+            unique=True,
+            postgresql_where=text("coalesce(uri, filename) IS NOT NULL"),
+        ),
     )
 
     tenant_id: Mapped[uuid.UUID] = _tenant_fk()

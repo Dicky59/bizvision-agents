@@ -54,6 +54,14 @@ async def test_upgrade_and_downgrade(test_engine: AsyncEngine, test_database_url
         }
         assert {"ix_chunks_embedding_hnsw", "ix_chunks_tsv"} <= indexes
 
+        source_indexes = {
+            r[0]
+            for r in await conn.execute(
+                text("SELECT indexname FROM pg_indexes WHERE tablename = 'sources'")
+            )
+        }
+        assert "uq_sources_identity" in source_indexes
+
     run_alembic(test_database_url, "downgrade", "base")
     async with test_engine.connect() as conn:
         tables = {
