@@ -1,0 +1,152 @@
+# FAQ for the `bizvision` demo tenant (public business information, fine to commit).
+#
+# DRAFT: contains {{PLACEHOLDERS}} that must be replaced with real values before import:
+#   {{PRICE_ASSISTANT}}            price of the AI customer-service assistant package
+#   {{PRICE_EMAIL_AGENT}}          price of the email agent package
+#   {{PRICE_REPORTING}}            price of the reporting automation package
+#   {{PRICE_MAINTENANCE_MONTHLY}}  monthly maintenance fee
+#   {{DELIVERY_TIME}}              typical delivery time
+# `bv faq import` refuses a file that still contains unfilled placeholders, so a visitor can
+# never be shown "{{PRICE_ASSISTANT}}".
+#
+# Import:  uv run bv faq import bizvision faq/bizvision.yaml
+# Every entry exists in Finnish and English. Facts about the free audit and the project process
+# come from bizvision.fi; the package descriptions come from docs/specs; please review them.
+
+# ------------------------------------------------------------------ Finnish
+
+- q: Mitä AI-asiakaspalvelija on?
+  a: >-
+    AI-asiakaspalvelija on yrityksesi verkkosivulle upotettava chat-avustaja. Se vastaa
+    kävijöiden kysymyksiin vain yrityksesi omasta sisällöstä — verkkosivuilta, ladatuista
+    dokumenteista ja usein kysytyistä kysymyksistä — suomeksi ja englanniksi, ja näyttää
+    vastauksen lähdesivut. Jos vastausta ei löydy sisällöstä, se kertoo sen rehellisesti ja
+    tarjoaa yhteyttä ihmiseen. Kun kävijä haluaa tarjouksen tai yhteydenoton, avustaja kerää
+    yhteystiedot lyhyellä lomakkeella (suostumus mukana) ja ne lähetetään sähköpostitse
+    yrityksellesi. Avustaja ei keksi hintoja, saatavuutta tai lupauksia yrityksesi puolesta.
+    Se asennetaan sivustolle yhdellä script-tagilla, ja sen sävy, tervehdys ja aloituskysymykset
+    räätälöidään yrityksellesi.
+
+- q: Mitä sähköpostiagentti tekee?
+  a: >-
+    Sähköpostiagentti käy läpi yrityksesi saapuvan sähköpostin (Microsoft 365 tai Gmail),
+    luokittelee viestit, ohjaa ne oikealle henkilölle ja laatii vastausluonnokset. Sinä
+    tarkistat ja hyväksyt luonnokset — vasta hyväksynnän jälkeen vastaus lähtee. Näin
+    samojen kysymysten toistuva vastaaminen ja viestien lajittelu vie vähemmän aikaa.
+
+- q: Mitä raportointiautomaatio on?
+  a: >-
+    Raportointiautomaatio kokoaa tiedot yrityksesi tietolähteistä ja kirjoittaa niistä
+    säännöllisen raportin tekoälyn avulla. Tavoitteena on saman päivän automaattiraportti
+    viikon manuaalisen taulukkotyön sijaan.
+
+- q: Paljonko paketit maksavat?
+  a: >-
+    AI-asiakaspalvelija, sähköpostiagentti ja raportointiautomaatio myydään kiinteähintaisina
+    paketteina, joihin kuuluu kuukausittainen ylläpitomaksu. Hinnat: AI-asiakaspalvelija
+    {{PRICE_ASSISTANT}}, sähköpostiagentti {{PRICE_EMAIL_AGENT}}, raportointiautomaatio
+    {{PRICE_REPORTING}}. Kuukausittainen ylläpitomaksu on {{PRICE_MAINTENANCE_MONTHLY}}.
+    Ilmaisessa auditoinnissa saat selkeän hinnan ennen kuin mitään rakennetaan.
+
+- q: Kauanko toteutus kestää?
+  a: >-
+    Toteutusaika riippuu paketista ja laajuudesta. Tyypillinen toimitusaika on
+    {{DELIVERY_TIME}}. Tarkka aikataulu sovitaan ennen työn aloittamista.
+
+- q: Miten projekti etenee?
+  a: >-
+    Projekti etenee neljässä vaiheessa. 1) Kartoitus ja vaatimusmäärittely — selvitämme
+    tavoitteet, käyttäjät, rajoitteet ja tekniset realiteetit. 2) Suunnittelu ja arkkitehtuuri
+    — päätökset dokumentoidaan ja ovat läpinäkyviä. 3) Kehitys ja testaus — rakennamme
+    siistillä, ylläpidettävällä koodilla, ja tietoturva, suorituskyky ja skaalautuvuus
+    huomioidaan alusta asti. 4) Käyttöönotto ja tuki — huolellinen dokumentaatio, hallittu
+    luovutus ja tuki myös julkaisun jälkeen. Hyvä ensimmäinen askel on ilmainen auditointi.
+
+- q: Mitä ilmainen auditointi sisältää?
+  a: >-
+    Ilmainen auditointi kestää 20–30 minuuttia. Käymme läpi, miten asiat hoituvat tänään, ja
+    etsimme kohdat, joissa aikaa hukkuu — esimerkiksi sähköposti, liidit tai ajanvaraus. Saat
+    jälkikäteen lyhyen kirjallisen suunnitelman, jossa on 1–3 konkreettista korjausta, arvio
+    säästöstä ja rakentamisen hinnasta. Sinä päätät, rakennetaanko mitään. Ei myyntipuheita
+    eikä sitoumuksia, ja suunnitelma jää sinulle joka tapauksessa. Käymme auditoinnin aikana
+    läpi myös sen, mitä tietoja ja järjestelmiä käytetään, ennen kuin mikään koskettaa
+    järjestelmiäsi.
+
+- q: Onko auditointi oikeasti ilmainen?
+  a: >-
+    Kyllä, auditointi on ilmainen. Jos löydämme jotain korjattavaa, saat selkeän hinnan ennen
+    kuin mitään rakennetaan — mitään ei toteuteta ilman hyväksyntääsi.
+
+- q: Miten otan yhteyttä?
+  a: >-
+    Voit lähettää viestin osoitteeseen info@bizvision.fi tai ottaa yhteyttä sivuston kautta.
+    Tapaamme mielellämme kasvotusten Helsingissä tai videopuhelun välityksellä — sen mukaan,
+    mikä sinulle sopii parhaiten.
+
+# ------------------------------------------------------------------ English
+
+- q: What is the AI customer-service assistant?
+  a: >-
+    The AI customer-service assistant is a chat assistant embedded on your website. It answers
+    visitors' questions only from your own content — your web pages, uploaded documents and
+    frequently asked questions — in Finnish and English, and shows the source pages for its
+    answers. If the answer isn't in your content, it says so honestly and offers to connect the
+    visitor with a person. When a visitor wants a quote or to be contacted, the assistant
+    collects their details with a short form (consent included) and they are emailed to your
+    company. It never invents prices, availability or promises on your behalf. It is installed
+    with a single script tag, and its tone, greeting and starter questions are tailored to your
+    business.
+
+- q: What does the email agent do?
+  a: >-
+    The email agent goes through your incoming email (Microsoft 365 or Gmail), classifies the
+    messages, routes them to the right person and drafts replies. You review and approve the
+    drafts — a reply is only sent after you approve it. That way answering the same questions
+    over and over and sorting messages takes less of your time.
+
+- q: What is reporting automation?
+  a: >-
+    Reporting automation pulls data from your data sources and uses AI to write a regular
+    report from it. The goal is a same-day automated report instead of a week of manual
+    spreadsheet work.
+
+- q: How much do the packages cost?
+  a: >-
+    The AI customer-service assistant, the email agent and reporting automation are sold as
+    fixed-price packages that include a monthly maintenance fee. Prices: AI customer-service
+    assistant {{PRICE_ASSISTANT}}, email agent {{PRICE_EMAIL_AGENT}}, reporting automation
+    {{PRICE_REPORTING}}. The monthly maintenance fee is {{PRICE_MAINTENANCE_MONTHLY}}. In the
+    free audit you get a clear price before anything is built.
+
+- q: How long does implementation take?
+  a: >-
+    Implementation time depends on the package and the scope. The typical delivery time is
+    {{DELIVERY_TIME}}. The exact schedule is agreed before work begins.
+
+- q: How does a project work?
+  a: >-
+    A project runs in four stages. 1) Discovery and requirements — we clarify goals, users,
+    constraints and technical realities. 2) Design and architecture — decisions are documented
+    and transparent. 3) Development and testing — we build with clean, maintainable code, with
+    security, performance and scalability considered from the start. 4) Delivery and support —
+    thorough documentation, a structured handover and support after launch. A good first step
+    is the free audit.
+
+- q: What does the free audit include?
+  a: >-
+    The free audit takes 20–30 minutes. We walk through how things work today and look for
+    where time is lost — for example email, leads or scheduling. Afterwards you get a short
+    written plan with 1–3 concrete fixes, roughly what they would save you, and what they would
+    cost to build. You decide whether anything gets built. No pitch and no obligation, and you
+    keep the plan either way. During the audit we also walk through exactly what data and
+    systems would be used, before anything touches your systems.
+
+- q: Is the audit really free?
+  a: >-
+    Yes, the audit is free. If we find something worth fixing, you'll get a clear price before
+    anything is built — nothing is scoped without your sign-off.
+
+- q: How do I get in touch?
+  a: >-
+    You can send a message to info@bizvision.fi or get in touch through the website. We are
+    happy to meet in person in Helsinki or over a video call — whatever is easiest for you.

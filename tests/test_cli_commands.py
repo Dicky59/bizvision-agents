@@ -266,3 +266,10 @@ def test_search_with_nothing_ingested_and_bad_options(env: Env) -> None:
     bad = env.run("search", env.slug, "hinta", "--lang", "de", ok=False)
     assert bad.exit_code == 1 and "--lang" in bad.output
     assert env.run("search", env.slug, "hinta", "--top-k", "0", ok=False).exit_code == 2
+
+
+def test_faq_import_refuses_unfilled_placeholders(env: Env, tmp_path: Path) -> None:
+    body = '- q: "Paljonko maksaa?"\n  a: "Hinta on {{PRICE_ASSISTANT}}."\n'
+    r = env.run("faq", "import", env.slug, str(write_faq(tmp_path / "d.yaml", body)), ok=False)
+    assert r.exit_code == 1 and "unfilled placeholders: {{PRICE_ASSISTANT}}" in r.output
+    assert env.provider.calls == []  # nothing was embedded or stored

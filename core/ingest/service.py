@@ -13,6 +13,7 @@ Design notes (see ADR-004):
 import asyncio
 import hashlib
 import logging
+import re
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -46,6 +47,7 @@ Progress = Callable[[str, str], None]  # (outcome or "error"/"removed", url or n
 
 MAX_ERROR_SAMPLES = 20
 MAX_FAQ_CHARS = 20_000
+FAQ_PLACEHOLDER = re.compile(r"\{\{\s*[A-Za-z0-9_]+\s*\}\}")
 _GONE_REASONS = ("HTTP 404", "HTTP 410")  # page is gone; other failures are treated as transient
 
 
@@ -332,6 +334,10 @@ async def replace_faq(
     entries: list[FaqEntry],
 ) -> IngestStats:
     """Make the tenant's FAQ exactly `entries`: new/changed are embedded, absent ones deleted."""
+    unfilled = sorted({m for e in entries for m in FAQ_PLACEHOLDER.findall(e.question + e.answer)})
+    if unfilled:  # a visitor must never be shown "{{PRICE_ASSISTANT}}"
+        raise IngestError(f"FAQ contains unfilled placeholders: {', '.join(unfilled)}")
+
     cleaned: dict[str, FaqEntry] = {}
     for e in entries:
         q, a = e.question.strip(), e.answer.strip()

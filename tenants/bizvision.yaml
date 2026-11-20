@@ -19,8 +19,8 @@ assistant:
     fi: "Hei! Kysy minulta BizVisionin palveluista tai tekoälyautomaatiosta."
     en: "Hi! Ask me about BizVision's services or AI automation."
   starter_questions:
-    fi: ["Mitä palveluita tarjoatte?", "Paljonko AI-asiakaspalvelija maksaa?", "Miten projekti etenee?"]
-    en: ["What services do you offer?", "How much does an AI assistant cost?", "How does a project work?"]
+    fi: ["Mitä palveluita tarjoatte?", "Mitä ilmainen auditointi sisältää?", "Miten projekti etenee?"]
+    en: ["What services do you offer?", "What does the free audit include?", "How does a project work?"]
   retrieval:
     top_k: 6
     min_relevance: 0.35

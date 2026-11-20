@@ -434,3 +434,21 @@ async def test_faq_is_isolated_between_tenants(
     await replace_faq(sessionmaker, embedder, other_tenant_id, [])  # clears only their FAQ
     assert len(await sources(sessionmaker, tenant_id)) == 2
     assert await sources(sessionmaker, other_tenant_id) == {}
+
+
+async def test_faq_with_unfilled_placeholders_is_rejected_before_any_change(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    embedder, provider = make_embedder(sessionmaker)
+    await replace_faq(sessionmaker, embedder, tenant_id, FAQ)
+    calls = len(provider.calls)
+
+    draft = [
+        FaqEntry("Paljonko paketit maksavat?", "Hinta on {{PRICE_ASSISTANT}}."),
+        FaqEntry("Kauanko kestää?", "Noin {{ DELIVERY_TIME }}, ylläpito {{PRICE_ASSISTANT}}."),
+    ]
+    with pytest.raises(IngestError) as exc:
+        await replace_faq(sessionmaker, embedder, tenant_id, draft)
+
+    assert "{{ DELIVERY_TIME }}" in str(exc.value) and "{{PRICE_ASSISTANT}}" in str(exc.value)
+    assert len(provider.calls) == calls and len(await sources(sessionmaker, tenant_id)) == 2
