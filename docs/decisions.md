@@ -87,7 +87,7 @@ M2 introduces the only code path to external model providers. Several details of
 ## ADR-004 — M3: ingestion and retrieval
 
 **Date:** 2026-11-20
-**Status:** Accepted (retrieval decisions are added when step 6 lands)
+**Status:** Accepted
 
 ### Context
 M3 turns a tenant's website, files and FAQ into searchable chunks. Running the crawler against bizvision.fi surfaced several real-world issues that shaped the decisions below.
@@ -106,6 +106,10 @@ M3 turns a tenant's website, files and FAQ into searchable chunks. Running the c
 - **Finnish full-text search.** Postgres' snowball `finnish` config stems inflections but does **not split compounds** ("asiakaspalvelu" does not match "palvelu"). Accepted: vector search covers compounds, and RRF fusion combines both. No test assumes compound matching. The config name comes from a fixed whitelist (`fi`→`finnish`, `en`→`english`, else `simple`) and is bound as a `regconfig` parameter, never interpolated.
 - **FAQ boost needs no column.** FAQ chunks are identified at retrieval time by joining `sources.type = 'faq'`. FAQ entries are one chunk each, keyed by a hash of the normalised question; entries missing from a new import are deleted.
 - **Embedding costs are recorded but never blocked** by the LLM budget guard (the spec guards LLM calls only).
+- **Retrieval: the full-text leg uses an OR query, not `websearch_to_tsquery`** (deviation from spec §6.5). `websearch_to_tsquery` ANDs every term: "Paljonko AI-asiakaspalvelija maksaa?" became `palj & ai-asiakaspalvelij & … & maks`, which only matches chunks containing all of those words, so for natural questions the full-text leg almost never fired and hybrid search degraded to vector-only. `core/rag/query.py` instead tokenises the question into letters/digits (max 12 distinct terms, so no tsquery operators can get through), joins them with `|`, and `ts_rank_cd` ranks chunks that match more terms higher. Inflections still work through the snowball stemmer (hinta/hinnat/hinnasta, palvelu/palvelut/palveluita); compounds and some stem mismatches (yrityksille/yritys) do not, and are left to the vector leg.
+- **Retrieval: fusion and boosts.** Vector top 20 (cosine) and full-text top 20, fused with RRF (k = 60). Then two multiplicative boosts on the fused score: FAQ chunks ×1.15, and chunks whose language equals the query language ×1.2. The language boost is soft on purpose (no filter), so other-language content is still found when nothing matches the query language, while translated duplicates (bizvision.fi serves every page in fi and en) no longer crowd out `top_k`. RRF scores are close together (rank 1 vs rank 2 differ by about 1.6 %), so both boosts effectively decide ordering among near-equal candidates; revisit the factors against the eval set in M4.
+- **Retrieval: `relevance` is per chunk.** Each returned chunk carries its own cosine similarity to the query, clamped to 0..1, also for chunks found only by the full-text leg (the similarity is computed in the same SQL). `best_relevance(chunks)` is the confidence signal for the "I don't know" path. Ordering uses the fused score, which is not comparable across queries. The spec's `min_relevance: 0.35` is not yet calibrated: `text-embedding-3-small` similarities for good Finnish matches are often 0.3–0.6, so tune it on the real sample queries before M4 relies on it.
+- **Retrieval: HNSW and tenant filters.** Each retrieval transaction sets `hnsw.iterative_scan = strict_order` (pgvector ≥ 0.8; local image 0.8.7). Without it, an HNSW scan that is filtered by `tenant_id` afterwards can return fewer than the requested rows when a tenant is a small share of a large table. Neon provides pgvector 0.8; older versions would fail on the `SET LOCAL`.
 
 ### Consequences
 - Re-running `bv ingest` is cheap: unchanged pages cost no embedding call and no `usage_events` row.

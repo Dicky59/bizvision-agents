@@ -50,3 +50,32 @@ def make_embedder(
 ) -> tuple[EmbeddingClient, FakeEmbeddingProvider]:
     provider = provider or FakeEmbeddingProvider()
     return EmbeddingClient(provider, sessionmaker, eur_per_usd=0.92), provider
+
+
+_TOPIC_AXES: list[tuple[int, tuple[str, ...]]] = [
+    (0, ("hinta", "hinnat", "maksaa", "paljon", "price", "much", "cost")),
+    (1, ("palvelu", "service")),
+    (2, ("yhteys", "yhteyttä", "contact")),
+]
+
+
+def axis_vector(axis: int, value: float = 1.0) -> list[float]:
+    v = [0.0] * EMBEDDING_DIM
+    v[axis] = value
+    return v
+
+
+def topic_vector(text: str) -> list[float]:
+    """Keyword -> axis embedding: same topic = cosine 1.0, different topic = 0.0 (exact)."""
+    lowered = text.lower()
+    for axis, words in _TOPIC_AXES:
+        if any(w in lowered for w in words):
+            return axis_vector(axis)
+    return axis_vector(100 + int(hashlib.sha256(text.encode()).hexdigest(), 16) % 1000)
+
+
+def tilted_vector(similarity: float) -> list[float]:
+    """Unit vector whose cosine similarity to axis_vector(0) is exactly `similarity`."""
+    v = axis_vector(0, similarity)
+    v[9] = (1 - similarity**2) ** 0.5
+    return v
