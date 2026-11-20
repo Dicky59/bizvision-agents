@@ -49,6 +49,14 @@ MAX_FAQ_CHARS = 20_000
 _GONE_REASONS = ("HTTP 404", "HTTP 410")  # page is gone; other failures are treated as transient
 
 
+def truncation_warning(max_pages: int) -> str:
+    """Shown by `bv ingest` when max_pages cut the crawl short (also stored as removal_skipped)."""
+    return (
+        f"crawl truncated at {max_pages} pages — removed pages won't be detected; "
+        "consider raising ingest.max_pages"
+    )
+
+
 @dataclass
 class IngestStats:
     new: int = 0
@@ -57,6 +65,7 @@ class IngestStats:
     removed: int = 0
     errors: int = 0
     chunks: int = 0
+    truncated: bool = False
     removal_skipped: str | None = None
     error_samples: list[str] = field(default_factory=list)
 
@@ -258,7 +267,8 @@ async def _remove_missing(
     notify: Progress,
 ) -> None:
     if report.truncated:
-        stats.removal_skipped = "crawl stopped at max_pages; raise it to enable removal"
+        stats.truncated = True
+        stats.removal_skipped = truncation_warning(report.attempted)
         return
     if stats.succeeded == 0:
         stats.removal_skipped = "no pages were crawled successfully"

@@ -186,7 +186,11 @@ async def test_truncated_crawl_never_removes(sessionmaker: SM, tenant_id: uuid.U
 
     stats = await crawl_site(sessionmaker, embedder, tenant_id, site, max_pages=1)
 
-    assert stats.removed == 0 and stats.removal_skipped and "max_pages" in stats.removal_skipped
+    assert (
+        stats.removed == 0
+        and stats.removal_skipped
+        and "crawl truncated at 1 pages" in stats.removal_skipped
+    )
     assert {s.status for s in (await sources(sessionmaker, tenant_id)).values()} == {"active"}
 
 

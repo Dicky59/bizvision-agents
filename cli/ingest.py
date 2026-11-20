@@ -16,6 +16,7 @@ from core.ingest.crawler import (
     CrawledPage,
     CrawledPdf,
     CrawlFailure,
+    CrawlReport,
     crawl,
     make_client,
     preview,
@@ -23,6 +24,7 @@ from core.ingest.crawler import (
 from core.ingest.errors import IngestError
 from core.ingest.files import parse_file
 from core.ingest.safety import Resolver, system_resolver
+from core.ingest.service import truncation_warning
 from core.tenants.config import IngestConfig, TenantConfig
 from core.tenants.repository import get_by_slug
 
@@ -33,6 +35,7 @@ class DryRunStats:
     pdfs: int = 0
     failures: int = 0
     chars: int = 0
+    truncated: bool = False
 
 
 async def dry_run(
@@ -45,7 +48,8 @@ async def dry_run(
 ) -> DryRunStats:
     """Crawl and print per page: URL, language, extracted chars, first ~300 chars."""
     stats = DryRunStats()
-    async for item in crawl(config, client, resolver=resolver, delay=delay):
+    report = CrawlReport()
+    async for item in crawl(config, client, resolver=resolver, delay=delay, report=report):
         if isinstance(item, CrawledPage):
             stats.pages += 1
             stats.chars += len(item.text)
@@ -71,6 +75,10 @@ async def dry_run(
             stats.failures += 1
             echo(f"\n[failed] {item.url}")
             echo(f"  {item.reason}")
+    if report.truncated:
+        stats.truncated = True
+        warning = truncation_warning(report.attempted)
+        echo(f"\nWARNING: {warning}")
     return stats
 
 

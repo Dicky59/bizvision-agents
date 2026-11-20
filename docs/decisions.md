@@ -80,3 +80,35 @@ M2 introduces the only code path to external model providers. Several details of
 - `usage_events.input_tokens` includes cache read/write tokens so totals add up; cost uses the per-class prices.
 - Cost reports can distinguish exact from estimated rows via `estimated`.
 - **`usage_events.cost_eur` is `Numeric(18, 10)`** (migration `0003`; was `Numeric(12, 6)`). Found by the live embeddings test: 10 tokens of `text-embedding-3-small` cost about 1.8e-7 EUR and rounded to 0 at 6 decimals, so every short chat-turn query embedding would have been recorded as free. `core/llm/pricing.cost_eur` now rounds to 10 decimals. Monthly budget sums are unaffected in behaviour (covered by a test summing 1000 tiny rows).
+
+
+---
+
+## ADR-004 — M3: ingestion and retrieval
+
+**Date:** 2026-11-20
+**Status:** Accepted (retrieval decisions are added when step 6 lands)
+
+### Context
+M3 turns a tenant's website, files and FAQ into searchable chunks. Running the crawler against bizvision.fi surfaced several real-world issues that shaped the decisions below.
+
+### Decision
+- **Source identity.** Web pages and FAQ entries are keyed by `uri`, files by `filename`. Migration `0004` adds the partial unique index `uq_sources_identity` on `(tenant_id, type, coalesce(uri, filename))`. Removed sources keep their row, so a page that comes back is reactivated, not duplicated. Linked PDFs found by the crawler are `type=web` sources (uri = the PDF URL), so the "page disappeared" logic covers them uniformly.
+- **URL normalisation.** Scheme/host lowercased, fragment and default port dropped, trailing slash stripped (not on the root). A same-domain `<link rel="canonical">` becomes the source identity and deduplicates pages reachable under several URLs; a cross-domain canonical is ignored. `www.example.com` and `example.com` count as the same site.
+- **Extraction.** trafilatura with `favor_recall=True` **and** `include_formatting=True`. The latter is what produces `#` headings and lists; without it heading-aware chunking sees flat text. Landing pages with short service/pricing blocks are kept. `bv ingest <tenant> --dry-run` prints per-page extraction results (no embeddings, no DB writes) so output can be reviewed before indexing.
+- **The crawler is stateless: all cookies are blocked.** bizvision.fi remembers a locale after a visit to `/fi/...`; with a cookie jar, later English pages came back as Finnish and were dropped as canonical duplicates (10 of 12 sitemap pages crawled, no error reported). Found via `--dry-run`.
+- **Language detection.** `<html lang>` is trusted unless the text is *confidently* the other language (≥ 20 words, ≥ 5 stopword hits, ≥ 3× the other language's hits); then the text wins and a debug line is logged. Reason: bizvision.fi serves a Finnish page with `lang="en"`, and the language drives the full-text config and the retrieval language boost. A small stopword heuristic (fi/en) is used instead of a dependency.
+- **SSRF guard** (`core/ingest/safety.py`), because phase 2 will crawl user-supplied URLs with the same crawler: http/https only; the host must resolve only to public addresses (private, loopback, link-local, multicast, reserved, unspecified; IPv4-mapped IPv6 unwrapped); every redirect hop is re-validated (redirects are followed manually, max 5); response bodies are capped at 5 MB while streaming. Residual risk: DNS rebinding. We validate the resolved addresses and httpx resolves again when connecting, so an attacker-controlled DNS server could answer differently the second time. Closing it needs pinning the connection to the validated IP; to be done before phase 2 accepts arbitrary URLs.
+- **Sitemaps** containing a DTD or entity declaration are rejected (XML bombs) instead of adding `defusedxml`. robots.txt: 4xx means allowed, 5xx means disallow-all (RFC 9309).
+- **Transactions.** Embedding happens *before* the write transaction; one page is one transaction (source upsert + chunk replacement). A failed embedding leaves the previous chunks and hash untouched, so the next run retries.
+- **Removal is conservative.** A source is marked `removed` (chunks deleted) only when a *complete* crawl no longer finds it. Nothing is removed when the crawl produced no pages (outage, robots 5xx) or was truncated by `max_pages`. Only HTTP 404/410 count as "gone"; other failures keep the existing content.
+- **`max_pages` limitation.** When a crawl is truncated by `ingest.max_pages`, pages that were removed from the site **cannot be detected** (the crawler cannot tell "not reached" from "gone"), so stale chunks stay searchable until the limit is raised or the crawl completes. `bv ingest` prints `crawl truncated at N pages — removed pages won't be detected; consider raising ingest.max_pages` (also stored as `removal_skipped` in the job stats).
+- **Finnish full-text search.** Postgres' snowball `finnish` config stems inflections but does **not split compounds** ("asiakaspalvelu" does not match "palvelu"). Accepted: vector search covers compounds, and RRF fusion combines both. No test assumes compound matching. The config name comes from a fixed whitelist (`fi`→`finnish`, `en`→`english`, else `simple`) and is bound as a `regconfig` parameter, never interpolated.
+- **FAQ boost needs no column.** FAQ chunks are identified at retrieval time by joining `sources.type = 'faq'`. FAQ entries are one chunk each, keyed by a hash of the normalised question; entries missing from a new import are deleted.
+- **Embedding costs are recorded but never blocked** by the LLM budget guard (the spec guards LLM calls only).
+
+### Consequences
+- Re-running `bv ingest` is cheap: unchanged pages cost no embedding call and no `usage_events` row.
+- A very large site needs `ingest.max_pages` raised for removal detection to work.
+- The DNS-rebinding gap is documented and must be closed before untrusted URLs are crawled.
+- Changing the crawler's identity rules (normalisation/canonical) later would orphan existing source rows; a reindex handles it.

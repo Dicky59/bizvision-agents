@@ -76,3 +76,28 @@ async def test_dry_run_writes_nothing_to_the_database(
     async with httpx.AsyncClient(transport=httpx.MockTransport(site.handler)) as client:
         await dry_run(config, client, lambda _: None, resolver=resolve_public, delay=0)
     assert await counts() == before
+
+
+async def test_dry_run_warns_when_crawl_is_truncated() -> None:
+    routes: dict[str, httpx.Response | str] = {
+        "/": html_page("Etusivu", links=tuple(f"/p{i}" for i in range(5)))
+    }
+    routes.update({f"/p{i}": html_page(f"P{i}") for i in range(5)})
+    lines: list[str] = []
+    config = IngestConfig(start_urls=["https://example.com"], use_sitemap=False, max_pages=2)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(Site(routes).handler)) as client:
+        stats = await dry_run(config, client, lines.append, resolver=resolve_public, delay=0)
+    assert stats.truncated
+    assert (
+        "WARNING: crawl truncated at 2 pages — removed pages won't be detected; "
+        "consider raising ingest.max_pages"
+    ) in "\n".join(lines)
+
+
+async def test_dry_run_does_not_warn_when_everything_fits() -> None:
+    lines: list[str] = []
+    config = IngestConfig(start_urls=["https://example.com"], use_sitemap=False, max_pages=5)
+    site = Site({"/": html_page("Etusivu")})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(site.handler)) as client:
+        stats = await dry_run(config, client, lines.append, resolver=resolve_public, delay=0)
+    assert not stats.truncated and "WARNING" not in "\n".join(lines)
