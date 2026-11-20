@@ -449,5 +449,10 @@ async def test_crawler_is_stateless_and_never_sends_cookies() -> None:
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         items = [i async for i in crawl(config, client, resolver=resolve_public, delay=0)]
     about = next(p for p in pages(items) if p.url.endswith("/about"))
-    assert about.title == "About" and about.language == "en"
+    assert about.title == "About"  # the cookie-less variant (fixture body text is Finnish)
     assert seen_cookies == []
+
+
+def test_extraction_overrules_wrong_html_lang_for_finnish_content() -> None:
+    page = extract_page(html_page("Palvelut", lang="en"), "https://example.com/")
+    assert page is not None and page.language == "fi"
