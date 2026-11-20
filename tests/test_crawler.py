@@ -423,3 +423,31 @@ async def test_redirect_to_internal_host_is_blocked() -> None:
 def test_preview_collapses_whitespace_and_truncates() -> None:
     assert preview("a\n\n  b\tc", 10) == "a b c"
     assert len(preview("x" * 1000)) == 300
+
+
+async def test_crawler_is_stateless_and_never_sends_cookies() -> None:
+    """Sites that remember a locale cookie must not change what later pages return."""
+    seen_cookies: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if cookie := req.headers.get("cookie"):
+            seen_cookies.append(cookie)
+        headers = {"content-type": "text/html", "set-cookie": "locale=fi; Path=/"}
+        if req.url.path == "/":
+            return httpx.Response(
+                200, text=html_page("Etusivu", links=("/about",)), headers=headers
+            )
+        if req.url.path == "/about":
+            if "locale=fi" in req.headers.get("cookie", ""):  # what a sticky-locale site would do
+                return httpx.Response(200, text=html_page("Meistä", lang="fi"), headers=headers)
+            return httpx.Response(200, text=html_page("About", lang="en"), headers=headers)
+        return httpx.Response(404)
+
+    config = IngestConfig.model_validate(
+        {"start_urls": ["https://example.com"], "use_sitemap": False}
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        items = [i async for i in crawl(config, client, resolver=resolve_public, delay=0)]
+    about = next(p for p in pages(items) if p.url.endswith("/about"))
+    assert about.title == "About" and about.language == "en"
+    assert seen_cookies == []

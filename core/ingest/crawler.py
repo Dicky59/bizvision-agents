@@ -11,6 +11,7 @@ import re
 import xml.etree.ElementTree as ET
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from http.cookiejar import DefaultCookiePolicy
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 
@@ -205,6 +206,9 @@ async def crawl(
     start_urls = [normalize_url(u) for u in config.start_urls]
     if not start_urls:
         return
+    # Stateless crawling: sites with sticky locale cookies (e.g. after visiting /fi/...) would
+    # otherwise serve a different language for later pages. Blocks all cookies on this client.
+    client.cookies.jar.set_policy(DefaultCookiePolicy(allowed_domains=[]))
     headers = {"User-Agent": USER_AGENT}
     robots: dict[str, _Robots] = {}
 
