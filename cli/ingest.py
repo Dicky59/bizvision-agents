@@ -1,16 +1,20 @@
-"""`bv ingest`: currently only `--dry-run` (crawl + extract, no embeddings, no DB writes)."""
+"""`bv ingest`: crawl a tenant's site (or ingest local files) and index it.
+
+`--dry-run` crawls and prints what would be extracted: no embeddings, no DB writes.
+"""
 
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated
 
 import httpx
 import typer
-from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from cli.tenants import _fail, run_with_session
+from cli import deps
+from cli.deps import SessionMaker, db_now, echo_cost, embed_cost_since, load_tenant
+from cli.tenants import _fail, run_with_session, run_with_sessionmaker
 from core.ingest.crawler import (
     DEFAULT_DELAY,
     CrawledPage,
@@ -18,15 +22,15 @@ from core.ingest.crawler import (
     CrawlFailure,
     CrawlReport,
     crawl,
-    make_client,
     preview,
 )
 from core.ingest.errors import IngestError
 from core.ingest.files import parse_file
 from core.ingest.safety import Resolver, system_resolver
-from core.ingest.service import truncation_warning
-from core.tenants.config import IngestConfig, TenantConfig
-from core.tenants.repository import get_by_slug
+from core.ingest.service import IngestStats, crawl_tenant, ingest_file, truncation_warning
+from core.tenants.config import IngestConfig
+
+MAX_ERRORS_SHOWN = 5
 
 
 @dataclass
@@ -82,8 +86,89 @@ async def dry_run(
     return stats
 
 
+def _progress(outcome: str, name: str) -> None:
+    typer.echo(f"  {outcome:<9} {name}")
+
+
+def _echo_summary(stats: IngestStats) -> None:
+    typer.echo(
+        f"\n{stats.new} new, {stats.updated} updated, {stats.unchanged} unchanged, "
+        f"{stats.removed} removed, {stats.errors} errors; {stats.chunks} chunks written"
+    )
+    for sample in stats.error_samples[:MAX_ERRORS_SHOWN]:
+        typer.secho(f"  error: {sample}", fg=typer.colors.RED, err=True)
+    if stats.errors > MAX_ERRORS_SHOWN:
+        typer.echo(f"  ... and {stats.errors - MAX_ERRORS_SHOWN} more (see the job stats)")
+    if stats.truncated and stats.removal_skipped:
+        typer.secho(f"WARNING: {stats.removal_skipped}", fg=typer.colors.YELLOW)
+    elif stats.removal_skipped:
+        typer.secho(f"Note: removal skipped ({stats.removal_skipped})", fg=typer.colors.YELLOW)
+
+
+async def _run_crawl(sessionmaker: SessionMaker, slug: str) -> bool:
+    async with sessionmaker() as session:
+        tenant_id, cfg = await load_tenant(session, slug)
+    if not cfg.ingest.start_urls:
+        raise _fail(f"Tenant '{slug}' has no ingest.start_urls configured")
+    since = await db_now(sessionmaker)
+    embedder = deps.DEPS.make_embedder(sessionmaker)
+    typer.echo(f"Ingesting '{slug}' from {', '.join(cfg.ingest.start_urls)}")
+    async with deps.DEPS.make_client() as client:
+        stats = await crawl_tenant(
+            sessionmaker,
+            embedder,
+            tenant_id,
+            cfg.ingest,
+            client,
+            resolver=deps.DEPS.resolver,
+            delay=deps.DEPS.delay,
+            progress=_progress,
+        )
+    _echo_summary(stats)
+    echo_cost(await embed_cost_since(sessionmaker, tenant_id, since))
+    return stats.succeeded > 0
+
+
+async def _run_files(sessionmaker: SessionMaker, slug: str, files: list[Path]) -> bool:
+    async with sessionmaker() as session:
+        tenant_id, _ = await load_tenant(session, slug)
+    since = await db_now(sessionmaker)
+    embedder = deps.DEPS.make_embedder(sessionmaker)
+    ok = True
+    total = IngestStats()
+    for path in files:
+        try:
+            data = await asyncio.to_thread(path.read_bytes)
+            stats = await ingest_file(sessionmaker, embedder, tenant_id, path.name, data)
+        except (IngestError, OSError) as e:
+            ok = False
+            total.add_error(path.name, f"{type(e).__name__}: {e}")
+            _progress("error", path.name)
+            continue
+        for field in ("new", "updated", "unchanged"):
+            if getattr(stats, field):
+                _progress(field, path.name)
+        total.new += stats.new
+        total.updated += stats.updated
+        total.unchanged += stats.unchanged
+        total.chunks += stats.chunks
+    _echo_summary(total)
+    echo_cost(await embed_cost_since(sessionmaker, tenant_id, since))
+    return ok
+
+
 def ingest(
     slug: Annotated[str, typer.Argument(help="Tenant slug")],
+    files: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--files",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Ingest this file (PDF, DOCX, MD, TXT) instead of crawling; repeat for several",
+        ),
+    ] = None,
     dry_run_: Annotated[
         bool,
         typer.Option(
@@ -92,34 +177,43 @@ def ingest(
         ),
     ] = False,
 ) -> None:
-    """Ingest a tenant's website content (full ingest arrives in a later step)."""
-    if not dry_run_:
-        raise _fail("Only --dry-run is implemented so far; re-run with --dry-run.")
+    """Index a tenant's website (default) or local files. Re-runs skip unchanged content."""
+    if dry_run_ and files:
+        raise _fail("--dry-run only applies to crawling; don't combine it with --files")
 
-    async def load(session: AsyncSession) -> TenantConfig | None:
-        tenant = await get_by_slug(session, slug)
-        return TenantConfig.model_validate(tenant.config) if tenant else None
+    if dry_run_:
 
-    try:
-        cfg = run_with_session(load)
-    except ValidationError as e:
-        raise _fail(f"Stored config for '{slug}' is invalid:\n{e}") from e
-    if cfg is None:
-        raise _fail(
-            f"Tenant '{slug}' not found (run `bv tenants create {slug} --config ...` first)"
+        async def load(session):  # type: ignore[no-untyped-def]
+            return await load_tenant(session, slug)
+
+        _, cfg = run_with_session(load)
+        if not cfg.ingest.start_urls:
+            raise _fail(f"Tenant '{slug}' has no ingest.start_urls configured")
+
+        async def main() -> DryRunStats:
+            async with deps.DEPS.make_client() as client:
+                return await dry_run(
+                    cfg.ingest,
+                    client,
+                    typer.echo,
+                    resolver=deps.DEPS.resolver,
+                    delay=deps.DEPS.delay,
+                )
+
+        typer.echo(
+            f"Dry run for '{slug}': {', '.join(cfg.ingest.start_urls)} "
+            "(no embeddings, no DB writes)"
         )
-    if not cfg.ingest.start_urls:
-        raise _fail(f"Tenant '{slug}' has no ingest.start_urls configured")
+        stats = asyncio.run(main())
+        typer.echo(
+            f"\nDone: {stats.pages} pages, {stats.pdfs} PDFs, {stats.failures} failures, "
+            f"{stats.chars} chars extracted."
+        )
+        return
 
-    async def main() -> DryRunStats:
-        async with make_client() as client:
-            return await dry_run(cfg.ingest, client, typer.echo)
-
-    typer.echo(
-        f"Dry run for '{slug}': {', '.join(cfg.ingest.start_urls)} (no embeddings, no DB writes)"
-    )
-    stats = asyncio.run(main())
-    typer.echo(
-        f"\nDone: {stats.pages} pages, {stats.pdfs} PDFs, {stats.failures} failures, "
-        f"{stats.chars} chars extracted."
-    )
+    if files:
+        ok = run_with_sessionmaker(lambda sm: _run_files(sm, slug, files))
+    else:
+        ok = run_with_sessionmaker(lambda sm: _run_crawl(sm, slug))
+    if not ok:
+        raise typer.Exit(code=1)

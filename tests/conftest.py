@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -38,6 +38,15 @@ def migrated_db(test_database_url: str) -> None:
         check=True,
         capture_output=True,
     )
+
+
+@pytest.fixture
+def cli_env(monkeypatch: pytest.MonkeyPatch, test_database_url: str) -> Iterator[None]:
+    """Point CLI commands (which read settings) at the test database, never the dev one."""
+    monkeypatch.setenv("DATABASE_URL", test_database_url)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

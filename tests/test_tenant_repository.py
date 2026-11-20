@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from typer.testing import CliRunner
 
 from cli.main import app
-from core.config import get_settings
 from core.db.models import Tenant
 from core.tenants import service
 from core.tenants.config import TenantConfig
@@ -74,14 +73,6 @@ async def test_resolve_public_tenant(session: AsyncSession, slug: str) -> None:
     await session.commit()
     service.clear_cache()
     assert await service.resolve_public_tenant(session, slug, "https://t.fi") is None
-
-
-@pytest.fixture
-def cli_env(monkeypatch: pytest.MonkeyPatch, test_database_url: str) -> Iterator[None]:
-    monkeypatch.setenv("DATABASE_URL", test_database_url)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 def test_cli_create_and_show(cli_env: None) -> None:

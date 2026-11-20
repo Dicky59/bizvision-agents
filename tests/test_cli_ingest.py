@@ -44,14 +44,7 @@ async def test_dry_run_preview_is_capped_at_300_chars() -> None:
     assert all(len(line) <= 310 for line in lines)
 
 
-@pytest.mark.usefixtures("migrated_db")
-def test_cli_requires_dry_run_flag() -> None:
-    result = CliRunner().invoke(app, ["ingest", "whatever"])
-    assert result.exit_code == 1
-    assert "--dry-run" in result.output
-
-
-@pytest.mark.usefixtures("migrated_db")
+@pytest.mark.usefixtures("migrated_db", "cli_env")
 def test_cli_unknown_tenant_fails() -> None:
     result = CliRunner().invoke(app, ["ingest", "no-such-tenant-xyz", "--dry-run"])
     assert result.exit_code == 1

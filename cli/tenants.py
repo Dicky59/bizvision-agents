@@ -16,18 +16,25 @@ from core.tenants.repository import get_by_slug, list_tenants, upsert_tenant
 app = typer.Typer(help="Manage tenants", no_args_is_help=True)
 
 
-def run_with_session[T](fn: Callable[[AsyncSession], Awaitable[T]]) -> T:
+def run_with_sessionmaker[T](fn: Callable[[async_sessionmaker[AsyncSession]], Awaitable[T]]) -> T:
     """Run fn in a fresh event loop with its own engine (CLI commands are short-lived)."""
 
     async def main() -> T:
         engine = make_engine(get_settings().database_url)
         try:
-            async with async_sessionmaker(engine, expire_on_commit=False)() as session:
-                return await fn(session)
+            return await fn(async_sessionmaker(engine, expire_on_commit=False))
         finally:
             await engine.dispose()
 
     return asyncio.run(main())
+
+
+def run_with_session[T](fn: Callable[[AsyncSession], Awaitable[T]]) -> T:
+    async def inner(sessionmaker: async_sessionmaker[AsyncSession]) -> T:
+        async with sessionmaker() as session:
+            return await fn(session)
+
+    return run_with_sessionmaker(inner)
 
 
 def _fail(msg: str) -> typer.Exit:

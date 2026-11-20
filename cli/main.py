@@ -1,8 +1,23 @@
+import sys
+
 import typer
 
+from cli import faq, tenants
 from cli import ingest as ingest_cmd
-from cli import tenants
+from cli import search as search_cmd
 
 app = typer.Typer(help="BizVision agents admin CLI", no_args_is_help=True)
 app.add_typer(tenants.app, name="tenants")
+app.add_typer(faq.app, name="faq")
 app.command("ingest")(ingest_cmd.ingest)
+app.command("search")(search_cmd.search)
+
+
+@app.callback()
+def _main() -> None:
+    # Page content is arbitrary Unicode; never crash a command on a legacy Windows code page.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")  # type: ignore[union-attr]
+        except (AttributeError, ValueError):
+            pass
