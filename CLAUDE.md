@@ -141,6 +141,7 @@ cd widget && npm run build                  # → widget/dist/widget.js
 4. When you make a non-obvious technical choice, add a dated entry to `docs/decisions.md` (context → decision → consequences).
 5. If the spec is ambiguous or seems wrong, stop and ask rather than guessing on anything that affects data model, security or cost.
 6. Do not start work from a later phase unless asked.
+7. **Never commit unless the quality gates exit 0.** Run them as a plain `&&` chain with no pipes (no `| tail`, which hides the exit code), or with `set -o pipefail`: `uv run ruff format . && uv run ruff check . --fix && uv run pyright && uv run pytest`. If the database isn't reachable, stop and ask the user to start Docker — don't commit around failing tests.
 
 ## Out of scope for now
 
