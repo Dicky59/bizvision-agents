@@ -23,7 +23,10 @@ assistant:
     en: ["What services do you offer?", "What does the free audit include?", "How does a project work?"]
   retrieval:
     top_k: 6
-    min_relevance: 0.35
+    # PROVISIONAL (0.35 before): picked from 6 live data points on bizvision.fi, between the
+    # out-of-scope near-miss (0.344) and the weakest answerable query (0.403). Recalibrate on
+    # the M4 evals; see docs/decisions.md ADR-004.
+    min_relevance: 0.37
   history_turns: 8
 
 ingest:

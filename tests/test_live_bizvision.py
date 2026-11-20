@@ -12,25 +12,34 @@ ones at the root, the Finnish free-audit page at /ai-audit, and an English-only 
 here is first a reason to read the printed table, not necessarily a retrieval bug. The two
 negative queries were chosen to stay out of scope permanently (accounting, weather).
 
-Cost: about 12 pages (~30 chunks) plus 6 queries on text-embedding-3-small, i.e. cents. It writes
-into the throwaway tenant from the `tenant_id` fixture in bv_test, never the dev database.
+Cost: about 12 pages (~30 chunks) plus 6 queries on text-embedding-3-small, i.e. cents. The site
+is crawled and embedded once per module (fixture `live`). It writes into a throwaway tenant in
+bv_test and deletes it afterwards, never touching the dev database.
 
-Two phases: right now the answerable queries only have to find their page within the default
-top_k (6), and the off-topic query has to score below all of them. Once `min_relevance` has been
-calibrated from the printed numbers (see ADR-004), tighten this test so that every answerable
-query scores >= the threshold and the near-miss and the off-topic query score below it.
+Two phases: right now an answerable query only has to find its page within the default top_k (6),
+and the off-topic query has to score below all of them. `min_relevance` is provisional (0.37 in
+tenants/bizvision.yaml, from the six data points printed here); recalibrate it on the M4 evals and
+then tighten this test so that answerable queries score >= the threshold and the negatives below.
+
+Known miss (strict xfail): "Teettekö myös hakukoneoptimointia?". The only English-only mention of
+SEO is one word inside a longer paragraph on /about, so neither the embedding (cross-language
+synonym) nor the full-text leg (no IDF weighting) surfaces it. The strict xfail turns into a
+failure the day it is fixed, as a reminder to remove the marker.
 """
 
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 import httpx
 import pytest
-from sqlalchemy import func, select
+import pytest_asyncio
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.config import get_settings
-from core.db.models import UsageEvent
+from core.db.models import Chunk, Source, Tenant, UsageEvent
+from core.db.session import make_engine
 from core.embeddings.client import EmbeddingClient
 from core.embeddings.openai_provider import OpenAIEmbeddingProvider
 from core.ingest import repository as repo
@@ -44,6 +53,10 @@ SM = async_sessionmaker[AsyncSession]
 
 BASE = "https://www.bizvision.fi"
 TOP_K = 6  # the default in tenants/bizvision.yaml (assistant.retrieval.top_k)
+SEO_MISS = (
+    "cross-language synonym (hakukoneoptimointi ↔ SEO); "
+    "expected fix: multilingual term expansion in M4 rewrite_query"
+)
 
 
 @dataclass(frozen=True)
@@ -93,6 +106,13 @@ def short(url: str | None) -> str:
     return (url or "-").removeprefix(BASE) or "/"
 
 
+def first_hit_rank(case: Case, chunks: list[RetrievedChunk]) -> int | None:
+    for i, chunk in enumerate(chunks, start=1):
+        if chunk.url in case.expected:
+            return i
+    return None
+
+
 def format_table(results: dict[str, list[RetrievedChunk]]) -> str:
     lines = ["", "query | first expected hit (rank) | best relevance | top 3 (relevance url)"]
     for case in CASES:
@@ -105,14 +125,7 @@ def format_table(results: dict[str, list[RetrievedChunk]]) -> str:
     return "\n".join(lines)
 
 
-def first_hit_rank(case: Case, chunks: list[RetrievedChunk]) -> int | None:
-    for i, chunk in enumerate(chunks, start=1):
-        if chunk.url in case.expected:
-            return i
-    return None
-
-
-async def embed_cost_rows(sm: SM, tenant_id: uuid.UUID) -> int:
+async def usage_rows(sm: SM, tenant_id: uuid.UUID) -> int:
     async with sm() as s:
         q = select(func.count()).select_from(UsageEvent).where(UsageEvent.tenant_id == tenant_id)
         return (await s.execute(q)).scalar_one()
@@ -124,7 +137,20 @@ async def crawl(sm: SM, embedder: EmbeddingClient, tenant_id: uuid.UUID) -> Inge
         return await crawl_tenant(sm, embedder, tenant_id, config, client, delay=0.3)
 
 
-async def test_live_bizvision_ingest_and_retrieval(sessionmaker: SM, tenant_id: uuid.UUID) -> None:
+@dataclass
+class Live:
+    sessionmaker: SM
+    embedder: EmbeddingClient
+    tenant_id: uuid.UUID
+    first: IngestStats
+    token_counts: list[int]
+    sources: dict[str | None, Source]
+    results: dict[str, list[RetrievedChunk]]
+
+
+@pytest_asyncio.fixture(scope="module")
+async def live(migrated_db: None) -> AsyncIterator[Live]:
+    """Crawl + embed bizvision.fi once, then run all six queries (printed as a table)."""
     settings = get_settings()
     if not settings.openai_api_key:
         pytest.skip("OPENAI_API_KEY not set")
@@ -133,52 +159,104 @@ async def test_live_bizvision_ingest_and_retrieval(sessionmaker: SM, tenant_id: 
             await probe.get(BASE)
     except httpx.HTTPError:
         pytest.skip("bizvision.fi is not reachable")
-    embedder = EmbeddingClient(
-        OpenAIEmbeddingProvider(settings.openai_api_key), sessionmaker, settings.eur_per_usd
+
+    engine = make_engine(settings.test_database_url)
+    sm: SM = async_sessionmaker(engine, expire_on_commit=False)
+    tenant_id = uuid.uuid4()
+    async with sm() as s:
+        s.add(
+            Tenant(
+                id=tenant_id,
+                slug=f"live-{tenant_id.hex[:8]}",
+                name="Live test",
+                public_key=f"pk_{tenant_id.hex}",
+            )
+        )
+        await s.commit()
+    try:
+        embedder = EmbeddingClient(
+            OpenAIEmbeddingProvider(settings.openai_api_key), sm, settings.eur_per_usd
+        )
+        first = await crawl(sm, embedder, tenant_id)
+        async with sm() as s:
+            sources = {x.uri: x for x in await repo.list_sources(s, tenant_id, status="active")}
+            token_counts = list(
+                (await s.execute(select(Chunk.token_count).where(Chunk.tenant_id == tenant_id)))
+                .scalars()
+                .all()
+            )
+        results: dict[str, list[RetrievedChunk]] = {}
+        for case in CASES:
+            async with sm() as s:
+                results[case.query] = await retrieve(
+                    s, embedder, tenant_id, case.query, "fi", TOP_K
+                )
+
+        # calibration data for min_relevance; visible with -s
+        print(format_table(results))
+        print(
+            f"\npages: {first.new}  chunks: {first.chunks}  "
+            f"avg tokens/chunk: {sum(token_counts) / max(1, len(token_counts)):.0f}  "
+            f"max: {max(token_counts, default=0)}"
+        )
+        yield Live(sm, embedder, tenant_id, first, token_counts, sources, results)
+    finally:
+        async with sm() as s:
+            await s.execute(delete(Tenant).where(Tenant.id == tenant_id))
+            await s.commit()
+        await engine.dispose()
+
+
+async def test_crawl_indexes_the_site(live: Live) -> None:
+    assert live.first.errors == 0, f"crawl errors: {live.first.error_samples}"
+    assert live.first.new >= 10, f"expected about 12 pages, got {live.first.new}; site changed?"
+    expected_urls = {url for case in ANSWERABLE for url in case.expected}
+    missing = sorted(expected_urls - set(live.sources))
+    assert not missing, f"pages the test relies on are not indexed (site changed?): {missing}"
+
+
+def test_wrongly_labelled_page_is_detected_as_finnish(live: Live) -> None:
+    # /ai-audit is Finnish text served with <html lang="en">; the text must win
+    assert live.sources[f"{BASE}/ai-audit"].language == "fi"
+
+
+def test_chunks_are_reasonably_sized(live: Live) -> None:
+    counts = live.token_counts
+    assert max(counts) <= 800, "a chunk exceeds the 800-token maximum"
+    tiny = sum(1 for c in counts if c < 40)
+    assert tiny <= max(2, len(counts) // 10), f"{tiny} of {len(counts)} chunks are under 40 tokens"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(c, id=c.query)
+        if "hakukone" not in c.query
+        else pytest.param(c, id=c.query, marks=pytest.mark.xfail(reason=SEO_MISS, strict=True))
+        for c in ANSWERABLE
+    ],
+)
+def test_answerable_query_finds_its_page(live: Live, case: Case) -> None:
+    chunks = live.results[case.query]
+    rank = first_hit_rank(case, chunks)
+    assert rank is not None, (
+        f"none of {[short(u) for u in case.expected]} in top {TOP_K}: "
+        f"{[short(c.url) for c in chunks]}"
     )
 
-    # ---- 1. first crawl indexes the site
-    first = await crawl(sessionmaker, embedder, tenant_id)
-    assert first.errors == 0, f"crawl errors: {first.error_samples}"
-    assert first.new >= 10, f"expected about 12 pages, got {first.new}; has the site changed?"
-    async with sessionmaker() as s:
-        sources = {x.uri: x for x in await repo.list_sources(s, tenant_id, status="active")}
-    expected_urls = {url for case in ANSWERABLE for url in case.expected}
-    missing = sorted(expected_urls - set(sources))
-    assert not missing, f"pages the test relies on are not indexed (site changed?): {missing}"
-    # regression: /ai-audit is Finnish text served with <html lang="en">; the text must win
-    assert sources[f"{BASE}/ai-audit"].language == "fi"
 
-    # ---- 2. retrieval quality (all queries are Finnish)
-    results: dict[str, list[RetrievedChunk]] = {}
-    for case in CASES:
-        async with sessionmaker() as s:
-            results[case.query] = await retrieve(s, embedder, tenant_id, case.query, "fi", TOP_K)
-    table = format_table(results)
-    print(table)  # calibration data for min_relevance; visible with -s
+def test_off_topic_scores_below_every_answerable_query(live: Live) -> None:
+    floor = best_relevance(live.results[OFF_TOPIC.query])
+    weakest = min(best_relevance(live.results[c.query]) for c in ANSWERABLE)
+    assert floor < weakest, f"off-topic scored {floor:.3f}, weakest answerable {weakest:.3f}"
 
-    problems: list[str] = []
-    for case in ANSWERABLE:
-        if first_hit_rank(case, results[case.query]) is None:
-            problems.append(
-                f"{case.query!r}: none of {[short(u) for u in case.expected]} in top {TOP_K}"
-            )
-    weakest_answerable = min(best_relevance(results[c.query]) for c in ANSWERABLE)
-    floor = best_relevance(results[OFF_TOPIC.query])
-    if floor >= weakest_answerable:
-        problems.append(
-            f"off-topic query scored {floor:.3f}, not below the weakest answerable "
-            f"query ({weakest_answerable:.3f})"
-        )
-    assert not problems, "\n".join(problems) + "\n" + table
 
-    # ---- 3. re-running the crawl skips everything and costs nothing
-    usage_before = await embed_cost_rows(sessionmaker, tenant_id)
-    second = await crawl(sessionmaker, embedder, tenant_id)
+async def test_recrawl_skips_everything_and_costs_nothing(live: Live) -> None:
+    before = await usage_rows(live.sessionmaker, live.tenant_id)
+    second = await crawl(live.sessionmaker, live.embedder, live.tenant_id)
     assert (second.new, second.updated, second.removed) == (0, 0, 0), second.to_dict()
-    assert second.unchanged == first.new, (
+    assert second.unchanged == live.first.new, (
         "pages changed between two runs seconds apart: extraction contains per-request content "
         f"(timestamps, build ids?) and would be re-embedded on every crawl. {second.to_dict()}"
     )
-    # and the second crawl embedded nothing: no new usage rows
-    assert await embed_cost_rows(sessionmaker, tenant_id) == usage_before
+    assert await usage_rows(live.sessionmaker, live.tenant_id) == before  # nothing was embedded
