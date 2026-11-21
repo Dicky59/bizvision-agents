@@ -345,3 +345,78 @@ async def test_tenant_with_no_content_gets_nothing_from_a_populated_neighbour(
     async with sessionmaker() as s:
         total = (await s.execute(select(func.count()).select_from(Source))).scalar_one()
         assert total >= 5  # the neighbour's rows exist in the same table
+
+
+# ------------------------------------------------------------------ dual query (raw + expanded)
+
+
+async def dual_search(
+    sm: SM,
+    tenant_id: uuid.UUID,
+    query: str,
+    raw_query: str | None,
+    *,
+    top_k: int = 5,
+) -> tuple[list[RetrievedChunk], FakeEmbeddingProvider]:
+    embedder, provider = embedder_for(sm)
+    async with sm() as s:
+        found = await retrieve(s, embedder, tenant_id, query, "fi", top_k, raw_query=raw_query)
+    return found, provider
+
+
+async def test_dual_query_embeds_both_texts_in_one_request(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    await add(sessionmaker, tenant_id, "u1", "Hinnat alkavat 990 eurosta")
+    _, provider = await dual_search(sessionmaker, tenant_id, "palvelu service", "hinta")
+    assert provider.calls == [["palvelu service", "hinta"]]  # one request, expanded first
+    async with sessionmaker() as s:
+        rows = (
+            await s.execute(
+                select(func.count())
+                .select_from(UsageEvent)
+                .where(UsageEvent.tenant_id == tenant_id, UsageEvent.operation == "embed")
+            )
+        ).scalar_one()
+    assert rows == 1
+
+
+async def test_dual_query_relevance_is_the_max_over_both_vectors(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    await add(sessionmaker, tenant_id, "u1", "Hinnat alkavat 990 eurosta")  # price axis
+    # The expansion drifted to an unrelated axis; the visitor's own words are on topic.
+    drifted, _ = await dual_search(sessionmaker, tenant_id, "satunnainen sekava laajennus", None)
+    dual, _ = await dual_search(sessionmaker, tenant_id, "satunnainen sekava laajennus", "hinta")
+    assert best_relevance(drifted) == pytest.approx(0.0)
+    assert best_relevance(dual) == pytest.approx(1.0)
+    assert dual[0].content.startswith("Hinnat")
+
+
+async def test_dual_query_raw_leg_adds_candidates_the_expansion_misses(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    await add(sessionmaker, tenant_id, "u1", "Hinnat alkavat 990 eurosta")  # price axis
+    await add(sessionmaker, tenant_id, "u2", "Palvelumme kattavat kaiken")  # service axis
+    found, _ = await dual_search(sessionmaker, tenant_id, "palvelu service", "hinta", top_k=2)
+    assert {c.content.split()[0] for c in found} == {"Hinnat", "Palvelumme"}
+    assert all(c.relevance == pytest.approx(1.0) for c in found)  # each is exact for one vector
+
+
+@pytest.mark.parametrize("raw", [None, "", "   ", "palvelu service"])
+async def test_single_vector_when_raw_is_absent_or_identical(
+    sessionmaker: SM, tenant_id: uuid.UUID, raw: str | None
+) -> None:
+    await add(sessionmaker, tenant_id, "u1", "Palvelumme kattavat kaiken")
+    found, provider = await dual_search(sessionmaker, tenant_id, "palvelu service", raw)
+    assert provider.calls == [["palvelu service"]]
+    assert best_relevance(found) == pytest.approx(1.0)
+
+
+async def test_dual_query_never_returns_other_tenants_data(
+    sessionmaker: SM, tenant_id: uuid.UUID, other_tenant_id: uuid.UUID
+) -> None:
+    await add(sessionmaker, other_tenant_id, "s1", "Salainen hinnasto")
+    await add(sessionmaker, tenant_id, "u1", "Palvelumme kattavat kaiken")
+    found, _ = await dual_search(sessionmaker, tenant_id, "palvelu service", "salainen hinta")
+    assert all("Salainen" not in c.content for c in found)

@@ -21,6 +21,8 @@ def make_retriever(sessionmaker: SessionMaker, embedder: EmbeddingClient) -> Ret
         language: Lang,
         top_k: int,
         conversation_id: uuid.UUID | None,
+        *,
+        raw_query: str | None = None,
     ) -> list[RetrievedChunk]:
         async with sessionmaker() as session:
             return await retrieve(
@@ -31,6 +33,7 @@ def make_retriever(sessionmaker: SessionMaker, embedder: EmbeddingClient) -> Ret
                 language,
                 top_k,
                 conversation_id=conversation_id,
+                raw_query=raw_query,
             )
 
     return retriever

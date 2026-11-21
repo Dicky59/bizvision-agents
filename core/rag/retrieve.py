@@ -52,8 +52,10 @@ class _Hit:
     similarity: float
 
 
-def _base(tenant_id: uuid.UUID, qvec: list[float]) -> Select:
-    similarity = (1 - Chunk.embedding.cosine_distance(qvec)).label("similarity")
+def _base(tenant_id: uuid.UUID, qvecs: list[list[float]]) -> Select:
+    """Similarity is the best cosine similarity across all query vectors (raw + expanded)."""
+    sims = [1 - Chunk.embedding.cosine_distance(v) for v in qvecs]
+    similarity = (sims[0] if len(sims) == 1 else func.greatest(*sims)).label("similarity")
     return (
         select(Chunk, Source, similarity)
         .join(Source, Source.id == Chunk.source_id)
@@ -71,9 +73,14 @@ async def vector_search(
     tenant_id: uuid.UUID,
     qvec: list[float],
     limit: int = CANDIDATES,
+    *,
+    similarity_vecs: list[list[float]] | None = None,
 ) -> list[_Hit]:
+    """Nearest chunks to `qvec`; each hit's similarity is the max over `similarity_vecs`."""
     await session.execute(_VECTOR_PRELUDE)
-    stmt = _base(tenant_id, qvec).order_by(Chunk.embedding.cosine_distance(qvec), Chunk.id)
+    stmt = _base(tenant_id, similarity_vecs or [qvec]).order_by(
+        Chunk.embedding.cosine_distance(qvec), Chunk.id
+    )
     rows = (await session.execute(stmt.limit(limit))).all()
     return [_Hit(c, s, float(sim)) for c, s, sim in rows]
 
@@ -85,13 +92,19 @@ async def fulltext_search(
     language: str | None,
     qvec: list[float],
     limit: int = CANDIDATES,
+    *,
+    similarity_vecs: list[list[float]] | None = None,
 ) -> list[_Hit]:
     or_query = build_or_query(query)
     if or_query is None:
         return []
     tsq = func.to_tsquery(ts_config_expr(language), or_query)
     rank = func.ts_rank_cd(Chunk.tsv, tsq)
-    stmt = _base(tenant_id, qvec).where(Chunk.tsv.op("@@")(tsq)).order_by(rank.desc(), Chunk.id)
+    stmt = (
+        _base(tenant_id, similarity_vecs or [qvec])
+        .where(Chunk.tsv.op("@@")(tsq))
+        .order_by(rank.desc(), Chunk.id)
+    )
     rows = (await session.execute(stmt.limit(limit))).all()
     return [_Hit(c, s, float(sim)) for c, s, sim in rows]
 
@@ -105,21 +118,38 @@ async def retrieve(
     top_k: int,
     *,
     conversation_id: uuid.UUID | None = None,
+    raw_query: str | None = None,
 ) -> list[RetrievedChunk]:
     """Top `top_k` chunks for `query`, best first.
 
     `language` is the query language ('fi'/'en'): it picks the full-text config and gives chunks
     in the same language a soft boost (no hard filter, so other-language content is still found).
+
+    `query` is the (possibly LLM-expanded) search query; `raw_query` is the visitor's own message.
+    When both are given and differ, they are embedded in ONE request, each gets its own vector
+    leg, the full-text leg runs on `query`, and all legs are fused with RRF. A chunk's relevance
+    is its best similarity to either vector, so the score no longer depends on how the expansion
+    happened to be worded.
     """
     if not query.strip() or top_k < 1:
         return []
-    [qvec] = await embedder.embed(tenant_id, [query], conversation_id=conversation_id)
+    texts = [query]
+    if raw_query and raw_query.strip() and raw_query.strip() != query.strip():
+        texts.append(raw_query)
+    qvecs = await embedder.embed(tenant_id, texts, conversation_id=conversation_id)
 
-    vector_hits = await vector_search(session, tenant_id, qvec)
-    text_hits = await fulltext_search(session, tenant_id, query, language, qvec)
+    vector_legs = [await vector_search(session, tenant_id, v, similarity_vecs=qvecs) for v in qvecs]
+    text_hits = await fulltext_search(
+        session, tenant_id, query, language, qvecs[0], similarity_vecs=qvecs
+    )
 
-    hits: dict[uuid.UUID, _Hit] = {h.chunk.id: h for h in (*text_hits, *vector_hits)}
-    scores = fuse([[h.chunk.id for h in vector_hits], [h.chunk.id for h in text_hits]], k=RRF_K)
+    hits: dict[uuid.UUID, _Hit] = {
+        h.chunk.id: h for h in (*text_hits, *(h for leg in vector_legs for h in leg))
+    }
+    scores = fuse(
+        [[h.chunk.id for h in leg] for leg in vector_legs] + [[h.chunk.id for h in text_hits]],
+        k=RRF_K,
+    )
     for chunk_id, hit in hits.items():
         if hit.source.type == "faq":
             scores[chunk_id] *= FAQ_BOOST

@@ -82,14 +82,22 @@ class Harness:
         self.provider = FakeLLMProvider(*scripts)
         self.tenant_id = tenant_id
         self.retrieved: list[tuple[str, Lang, int]] = []
+        self.raw_queries: list[str | None] = []
         self.chunks: list[RetrievedChunk] = [make_chunk()]
         llm = LLMClient(self.provider, sessionmaker, BudgetGuard(sessionmaker), 0.92)
 
         async def retriever(
-            tid: uuid.UUID, query: str, language: Lang, top_k: int, cid: uuid.UUID | None
+            tid: uuid.UUID,
+            query: str,
+            language: Lang,
+            top_k: int,
+            cid: uuid.UUID | None,
+            *,
+            raw_query: str | None = None,
         ) -> list[RetrievedChunk]:
             assert tid == tenant_id
             self.retrieved.append((query, language, top_k))
+            self.raw_queries.append(raw_query)
             return self.chunks
 
         self.assistant = Assistant(AssistantDeps(llm=llm, retriever=retriever))
@@ -133,6 +141,7 @@ async def test_question_answered_with_sources_and_expanded_query(
     events = await h.ask("Tarjoatteko hakukoneoptimointia?")  # first message, no history
 
     assert h.retrieved == [("hakukoneoptimointi SEO", "fi", 6)]  # expansion on the first message
+    assert h.raw_queries == ["Tarjoatteko hakukoneoptimointia?"]  # the visitor's own words too
     assert kinds(events) == ["Token", "Token", "Sources", "Done"]
     assert text_of(events) == "Kyllä, tarjoamme SEO-palvelua [1]."  # markers stay in the text
     src = next(e for e in events if isinstance(e, Sources))

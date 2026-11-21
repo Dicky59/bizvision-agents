@@ -109,7 +109,13 @@ class Rig:
         llm = LLMClient(self.provider, sessionmaker, BudgetGuard(sessionmaker), 0.92)
 
         async def retriever(
-            tid: uuid.UUID, q: str, lang: Lang, k: int, cid: uuid.UUID | None
+            tid: uuid.UUID,
+            q: str,
+            lang: Lang,
+            k: int,
+            cid: uuid.UUID | None,
+            *,
+            raw_query: str | None = None,
         ) -> list[RetrievedChunk]:
             return self.chunks
 

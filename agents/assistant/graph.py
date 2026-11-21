@@ -14,10 +14,10 @@ yields them. Input guards and persistence are layered around `reply` (milestone 
 
 import logging
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import aclosing
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
@@ -45,8 +45,23 @@ from core.tenants.config import Lang
 
 log = logging.getLogger(__name__)
 
-# (tenant_id, query, language, top_k, conversation_id) -> chunks
-Retriever = Callable[[uuid.UUID, str, Lang, int, uuid.UUID | None], Awaitable[list[RetrievedChunk]]]
+
+class Retriever(Protocol):
+    """Retrieval for one turn: `query` is the expanded search query, `raw_query` the visitor's
+    own message (both are searched, see core.rag.retrieve.retrieve)."""
+
+    def __call__(
+        self,
+        tenant_id: uuid.UUID,
+        query: str,
+        language: Lang,
+        top_k: int,
+        conversation_id: uuid.UUID | None,
+        /,
+        *,
+        raw_query: str | None = None,
+    ) -> Awaitable[list[RetrievedChunk]]: ...
+
 
 SMALLTALK_MAX_TOKENS = 200
 _LANGUAGE_RULE: dict[str, str] = {
@@ -136,6 +151,7 @@ class Assistant:
                 u.language,
                 req.cfg.assistant.retrieval.top_k,
                 req.conversation_id,
+                raw_query=req.message,
             )
             relevance = best_relevance(chunks)
             get_stream_writer()(
