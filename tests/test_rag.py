@@ -84,6 +84,14 @@ def test_rrf_scores_and_order() -> None:
     assert fuse([["x"]], k=0)["x"] == 1.0
 
 
+def test_rrf_weights_scale_each_ranking() -> None:
+    scores = fuse([["a", "b"], ["b"]], weights=[0.5, 1.0])
+    assert scores["a"] == pytest.approx(0.5 / 61)
+    assert scores["b"] == pytest.approx(0.5 / 62 + 1 / 61)
+    with pytest.raises(ValueError):
+        fuse([["a"]], weights=[1.0, 1.0])
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
@@ -420,3 +428,20 @@ async def test_dual_query_never_returns_other_tenants_data(
     await add(sessionmaker, tenant_id, "u1", "Palvelumme kattavat kaiken")
     found, _ = await dual_search(sessionmaker, tenant_id, "palvelu service", "salainen hinta")
     assert all("Salainen" not in c.content for c in found)
+
+
+async def test_extra_vector_leg_does_not_dilute_a_lexical_only_match(
+    sessionmaker: SM, tenant_id: uuid.UUID
+) -> None:
+    """A rare term found only by full-text search (think "SEO") must stay on top of chunks that
+    each only one vector leg finds: vector legs together weigh as much as the full-text leg."""
+    for i in (1, 2):
+        await add(sessionmaker, tenant_id, f"p{i}", f"Eurot alkaen {i}", vector=axis_vector(0))
+        await add(
+            sessionmaker, tenant_id, f"s{i}", f"Kattava kokonaisuus {i}", vector=axis_vector(1)
+        )
+    await add(
+        sessionmaker, tenant_id, "r", "Erikoisosaamista: design ja seo", vector=axis_vector(500)
+    )
+    found, _ = await dual_search(sessionmaker, tenant_id, "hinta seo", "palvelu", top_k=3)
+    assert found[0].content.startswith("Erikoisosaamista")

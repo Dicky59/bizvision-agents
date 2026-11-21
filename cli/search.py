@@ -18,6 +18,14 @@ def search(
     lang: Annotated[
         str | None, typer.Option("--lang", help="Query language: fi or en (default: detected)")
     ] = None,
+    expanded: Annotated[
+        str | None,
+        typer.Option(
+            "--expanded",
+            help="Expanded search query, as the assistant's understand step would produce it; "
+            "QUERY is then the visitor's raw message (both are searched)",
+        ),
+    ] = None,
     top_k: Annotated[
         int | None, typer.Option("--top-k", min=1, max=20, help="Results (default: tenant config)")
     ] = None,
@@ -32,9 +40,19 @@ def search(
             language = lang or detect_language(query) or cfg.default_language
             k = top_k or cfg.assistant.retrieval.top_k
             embedder = deps.DEPS.make_embedder(sessionmaker)
-            results = await retrieve(session, embedder, tenant_id, query, language, k)
+            results = await retrieve(
+                session,
+                embedder,
+                tenant_id,
+                expanded or query,
+                language,
+                k,
+                raw_query=query if expanded else None,
+            )
 
         typer.echo(f"Query: {query!r}  (language={language}, top_k={k})")
+        if expanded:
+            typer.echo(f"Expanded: {expanded!r}")
         if not results:
             typer.echo("No results (is the tenant ingested?)")
             return

@@ -22,15 +22,16 @@ and the off-topic query has to score below all of them. `min_relevance` is provi
 tenants/bizvision.yaml, from the six data points printed here); recalibrate it on the M4 evals and
 then tighten this test so that answerable queries score >= the threshold and the negatives below.
 
-Known miss (strict xfail): "Teettekö myös hakukoneoptimointia?". The only English-only mention of
-SEO is one word inside a longer paragraph on /en/about, so neither the embedding (cross-language
-synonym) nor the full-text leg (no IDF weighting) surfaces it. The strict xfail turns into a
-failure the day it is fixed, as a reminder to remove the marker.
+Query expansion: queries go through the real `understand` step (Anthropic, a fraction of a cent
+each) and retrieval searches both the raw message and the expanded query, exactly as in the
+assistant. That is what lets the Finnish SEO question find the English-only mention on /en/about.
+Without ANTHROPIC_API_KEY the fixture falls back to the raw message and that case is skipped.
 """
 
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 import pytest
@@ -38,6 +39,8 @@ import pytest_asyncio
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agents.assistant.types import AssistantRequest
+from agents.assistant.understand import understand
 from core.config import get_settings
 from core.db.models import Chunk, Source, Tenant, UsageEvent
 from core.db.session import make_engine
@@ -46,18 +49,21 @@ from core.embeddings.openai_provider import OpenAIEmbeddingProvider
 from core.ingest import repository as repo
 from core.ingest.crawler import make_client
 from core.ingest.service import IngestStats, crawl_tenant
+from core.llm.anthropic_provider import AnthropicProvider
+from core.llm.budget import BudgetGuard
+from core.llm.client import LLMClient
 from core.rag.retrieve import RetrievedChunk, best_relevance, retrieve
 from core.tenants.config import IngestConfig
+from core.tenants.loader import load_yaml
 
 pytestmark = pytest.mark.live
 SM = async_sessionmaker[AsyncSession]
 
 BASE = "https://www.bizvision.fi"
 TOP_K = 6  # the default in tenants/bizvision.yaml (assistant.retrieval.top_k)
-SEO_MISS = (
-    "cross-language synonym (hakukoneoptimointi ↔ SEO); "
-    "expected fix: multilingual term expansion in M4 rewrite_query"
-)
+
+
+SEO_QUERY = "Teettekö myös hakukoneoptimointia?"
 
 
 @dataclass(frozen=True)
@@ -84,7 +90,7 @@ CASES = [
         "inflected form: 'tekoälyagenteista' stems to the same lexeme as 'tekoälyagentti/-agentit'",
     ),
     Case(
-        "Teettekö myös hakukoneoptimointia?",
+        SEO_QUERY,
         (f"{BASE}/en/about",),
         "cross-language: only the ENGLISH About page mentions SEO; no word shared with the query",
     ),
@@ -114,7 +120,7 @@ def first_hit_rank(case: Case, chunks: list[RetrievedChunk]) -> int | None:
     return None
 
 
-def format_table(results: dict[str, list[RetrievedChunk]]) -> str:
+def format_table(results: dict[str, list[RetrievedChunk]], expanded: dict[str, str]) -> str:
     lines = ["", "query | first expected hit (rank) | best relevance | top 3 (relevance url)"]
     for case in CASES:
         chunks = results[case.query]
@@ -123,6 +129,8 @@ def format_table(results: dict[str, list[RetrievedChunk]]) -> str:
         hit = "n/a (negative)" if not case.expected else (f"#{rank}" if rank else "MISS")
         lines.append(f"{case.query!r} | {hit} | {best_relevance(chunks):.3f} | {top3}")
         lines.append(f"    ({case.why})")
+        if case.query in expanded:
+            lines.append(f"    expanded: {expanded[case.query]!r}")
     return "\n".join(lines)
 
 
@@ -147,6 +155,7 @@ class Live:
     token_counts: list[int]
     sources: dict[str | None, Source]
     results: dict[str, list[RetrievedChunk]]
+    expanded: dict[str, str]  # raw query -> search query used ("" when no LLM was available)
 
 
 @pytest_asyncio.fixture(scope="module")
@@ -186,21 +195,37 @@ async def live(migrated_db: None) -> AsyncIterator[Live]:
                 .scalars()
                 .all()
             )
+        llm = None
+        if settings.anthropic_api_key:
+            llm = LLMClient(
+                AnthropicProvider(settings.anthropic_api_key),
+                sm,
+                BudgetGuard(sm),
+                settings.eur_per_usd,
+            )
+        cfg = load_yaml(Path(__file__).parent.parent / "tenants" / "bizvision.yaml")
         results: dict[str, list[RetrievedChunk]] = {}
+        expanded: dict[str, str] = {}
         for case in CASES:
+            query = case.query
+            if llm is not None:
+                req = AssistantRequest(tenant_id=tenant_id, cfg=cfg, message=case.query)
+                u = await understand(llm, req)
+                query = u.search_query or case.query
+                expanded[case.query] = query
             async with sm() as s:
                 results[case.query] = await retrieve(
-                    s, embedder, tenant_id, case.query, "fi", TOP_K
+                    s, embedder, tenant_id, query, "fi", TOP_K, raw_query=case.query
                 )
 
         # calibration data for min_relevance; visible with -s
-        print(format_table(results))
+        print(format_table(results, expanded))
         print(
             f"\npages: {first.new}  chunks: {first.chunks}  "
             f"avg tokens/chunk: {sum(token_counts) / max(1, len(token_counts)):.0f}  "
             f"max: {max(token_counts, default=0)}"
         )
-        yield Live(sm, embedder, tenant_id, first, token_counts, sources, results)
+        yield Live(sm, embedder, tenant_id, first, token_counts, sources, results, expanded)
     finally:
         async with sm() as s:
             await s.execute(delete(Tenant).where(Tenant.id == tenant_id))
@@ -228,16 +253,10 @@ def test_chunks_are_reasonably_sized(live: Live) -> None:
     assert tiny <= max(2, len(counts) // 10), f"{tiny} of {len(counts)} chunks are under 40 tokens"
 
 
-@pytest.mark.parametrize(
-    "case",
-    [
-        pytest.param(c, id=c.query)
-        if "hakukone" not in c.query
-        else pytest.param(c, id=c.query, marks=pytest.mark.xfail(reason=SEO_MISS, strict=True))
-        for c in ANSWERABLE
-    ],
-)
+@pytest.mark.parametrize("case", [pytest.param(c, id=c.query) for c in ANSWERABLE])
 def test_answerable_query_finds_its_page(live: Live, case: Case) -> None:
+    if case.query == SEO_QUERY and SEO_QUERY not in live.expanded:
+        pytest.skip("needs ANTHROPIC_API_KEY: the SEO case depends on query expansion")
     chunks = live.results[case.query]
     rank = first_hit_rank(case, chunks)
     assert rank is not None, (

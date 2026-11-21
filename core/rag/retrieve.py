@@ -146,9 +146,12 @@ async def retrieve(
     hits: dict[uuid.UUID, _Hit] = {
         h.chunk.id: h for h in (*text_hits, *(h for leg in vector_legs for h in leg))
     }
+    # The vector legs together weigh as much as the full-text leg (1 : 1, as with a single query):
+    # an extra vector leg must not dilute lexical matches such as a rare term like "SEO".
     scores = fuse(
         [[h.chunk.id for h in leg] for leg in vector_legs] + [[h.chunk.id for h in text_hits]],
         k=RRF_K,
+        weights=[1 / len(vector_legs)] * len(vector_legs) + [1.0],
     )
     for chunk_id, hit in hits.items():
         if hit.source.type == "faq":
