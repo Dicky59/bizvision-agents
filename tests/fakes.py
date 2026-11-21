@@ -1,13 +1,15 @@
 """Test doubles shared by ingestion and retrieval tests (no network)."""
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.db.models import EMBEDDING_DIM
 from core.embeddings.client import EmbeddingClient
 from core.embeddings.provider import EmbeddingResult
+from core.llm.types import LLMEvent, LLMResult, TextDelta, Usage, UsageUpdate
 
 
 def hash_vector(text: str) -> list[float]:
@@ -72,6 +74,40 @@ def topic_vector(text: str) -> list[float]:
         if any(w in lowered for w in words):
             return axis_vector(axis)
     return axis_vector(100 + int(hashlib.sha256(text.encode()).hexdigest(), 16) % 1000)
+
+
+class FakeLLMProvider:
+    """Scripted LLMProvider: each call pops the next script entry (a str, or a list of stream
+    chunks). Records every call; streams count how many chunks were actually consumed."""
+
+    name = "fake"
+
+    def __init__(self, *scripts: str | list[str]) -> None:
+        self.scripts: list[str | list[str]] = list(scripts)
+        self.calls: list[dict[str, Any]] = []
+        self.chunks_consumed = 0
+
+    def _next(self, kind: str, **kw: Any) -> str | list[str]:
+        self.calls.append({"kind": kind, **kw})
+        if not self.scripts:
+            raise AssertionError(f"unexpected extra LLM {kind} call")
+        return self.scripts.pop(0)
+
+    async def complete(self, **kw: Any) -> LLMResult:
+        script = self._next("complete", **kw)
+        text = script if isinstance(script, str) else "".join(script)
+        return LLMResult(
+            text=text, usage=Usage(input_tokens=100, output_tokens=20), model=kw["model"]
+        )
+
+    async def stream(self, **kw: Any) -> AsyncIterator[LLMEvent]:
+        script = self._next("stream", **kw)
+        chunks = [script] if isinstance(script, str) else script
+        yield UsageUpdate(usage=Usage(input_tokens=100, output_tokens=1), final=False)
+        for chunk in chunks:
+            self.chunks_consumed += 1
+            yield TextDelta(chunk)
+        yield UsageUpdate(usage=Usage(input_tokens=100, output_tokens=30), final=True)
 
 
 def tilted_vector(similarity: float) -> list[float]:

@@ -16,6 +16,13 @@ class RetrievalConfig(_Strict):
     min_relevance: float = Field(default=0.35, ge=0, le=1)
 
 
+class MessagesConfig(_Strict):
+    """Optional per-tenant wording for the assistant's static (non-LLM) replies."""
+
+    dont_know: dict[Lang, str] = {}
+    decline: dict[Lang, str] = {}
+
+
 class AssistantConfig(_Strict):
     model: str = "claude-haiku-5-5"
     max_output_tokens: int = Field(default=600, ge=1, le=8192)
@@ -26,6 +33,7 @@ class AssistantConfig(_Strict):
     starter_questions: dict[Lang, list[str]] = {}
     retrieval: RetrievalConfig = RetrievalConfig()
     history_turns: int = Field(default=8, ge=0, le=50)
+    messages: MessagesConfig = MessagesConfig()
 
 
 class IngestConfig(_Strict):

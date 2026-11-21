@@ -150,6 +150,9 @@ Spec §7 describes classify → rewrite_query → retrieve → answer, with sepa
 - **The answer call receives the last `history_turns`** as well and always answers in the user's language, even when the context is in the other language.
 - **Evals** record time-to-first-token per case and report median/p90 per model alongside pass rate and cost.
 
+- **Retrieved context goes in the final user message, not the system prompt** (a small deviation from spec §7.1): the system prompt stays static per tenant (cache-friendly) and untrusted retrieved text sits in the user turn inside `<context>` tags, with our delimiter tags neutralized inside the content.
+- **Graph state is a dataclass; visitor-facing events leave nodes through LangGraph's custom stream writer** and are yielded by `Assistant.reply`. Input guards (length, per-conversation limit, budget) and persistence wrap `reply` (milestone steps 4-5).
+
 ### Consequences
 - Fewer LLM calls and lower latency; a deviation from the spec text (§7.1 updated).
 - A model that ignores the header protocol degrades to "always answerable" rather than failing; the header-failure counter makes that visible.
