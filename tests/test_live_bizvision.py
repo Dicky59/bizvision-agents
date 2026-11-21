@@ -6,11 +6,12 @@ Skipped by default. Run it (with -s to see the calibration table):
     uv run pytest -m live -s tests/test_live_bizvision.py
 
 THIS TEST DEPENDS ON THE LIVE bizvision.fi CONTENT. The expected URLs and the facts the queries
-rely on describe the site as of 2026-11-20 (a bilingual site: Finnish pages under /fi, English
-ones at the root, the Finnish free-audit page at /ai-audit, and an English-only mention of SEO on
-/about). When pages are added, renamed or reworded, `CASES` below may need updating; a failure
-here is first a reason to read the printed table, not necessarily a retrieval bug. The two
-negative queries were chosen to stay out of scope permanently (accounting, weather).
+rely on describe the site as of 2026-11-21 (a bilingual site: Finnish is the default locale and
+unprefixed, English lives under /en/..., /fi/... 301s to the unprefixed path, the Finnish
+free-audit page is /ai-audit, and the English-only mention of SEO is on /en/about). When pages
+are added, renamed or reworded, `CASES` below may need updating; a failure here is first a
+reason to read the printed table, not necessarily a retrieval bug. The two negative queries were
+chosen to stay out of scope permanently (accounting, weather).
 
 Cost: about 12 pages (~30 chunks) plus 6 queries on text-embedding-3-small, i.e. cents. The site
 is crawled and embedded once per module (fixture `live`). It writes into a throwaway tenant in
@@ -22,7 +23,7 @@ tenants/bizvision.yaml, from the six data points printed here); recalibrate it o
 then tighten this test so that answerable queries score >= the threshold and the negatives below.
 
 Known miss (strict xfail): "Teettekö myös hakukoneoptimointia?". The only English-only mention of
-SEO is one word inside a longer paragraph on /about, so neither the embedding (cross-language
+SEO is one word inside a longer paragraph on /en/about, so neither the embedding (cross-language
 synonym) nor the full-text leg (no IDF weighting) surfaces it. The strict xfail turns into a
 failure the day it is fixed, as a reminder to remove the marker.
 """
@@ -69,7 +70,7 @@ class Case:
 CASES = [
     Case(
         "Mitä palveluita tarjoatte?",
-        (f"{BASE}/fi", f"{BASE}/fi/ai-automation", f"{BASE}/fi/digital-development"),
+        (BASE + "/", f"{BASE}/ai-automation", f"{BASE}/digital-development"),
         "services: the 'mitä teemme' sections",
     ),
     Case(
@@ -79,12 +80,12 @@ CASES = [
     ),
     Case(
         "Mitä hyötyä tekoälyagenteista on?",
-        (f"{BASE}/fi/ai-automation", f"{BASE}/fi"),
+        (f"{BASE}/ai-automation", BASE + "/"),
         "inflected form: 'tekoälyagenteista' stems to the same lexeme as 'tekoälyagentti/-agentit'",
     ),
     Case(
         "Teettekö myös hakukoneoptimointia?",
-        (f"{BASE}/about",),
+        (f"{BASE}/en/about",),
         "cross-language: only the ENGLISH About page mentions SEO; no word shared with the query",
     ),
     Case(
