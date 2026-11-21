@@ -242,6 +242,7 @@ State loaded per request: tenant config, last `history_turns` messages from DB, 
               persist (messages, usage) ──▶ done
 ```
 
+- **Update (ADR-005):** classify and rewrite_query are a single "understand" LLM call returning `{intent, language, wants_human, search_query}`. dont_know and decline are static localized texts (tenant-overridable), not LLM calls. The answer's first line is `{"answerable": bool}`; citations are inline `[n]` markers.
 - **classify**: returns `{intent, language, wants_human: bool}`. Use the same cheap model; keep the prompt short.
 - **rewrite_query**: turns the latest message + recent history into a standalone search query (handles follow-ups like "entä hinta?"). Skip if the message is already standalone (heuristic: first message in conversation).
 - **answer**: system prompt from `prompts/answer.md` with tenant tone, company description, language, rules (§2), and retrieved chunks wrapped in `<context><doc id=".." url=".." title="..">…</doc></context>`. Model cites sources by doc id; the API maps ids to URLs and sends them as a `sources` event.
@@ -319,6 +320,7 @@ Auth: `Authorization: Bearer <ADMIN_API_KEY>`.
 - Renders inside a **Shadow DOM** so host-site CSS can't break it (and vice versa).
 - Fetches `/config`, renders launcher button → chat panel with greeting and starter questions.
 - Streams answers via `fetch` + SSE parsing (not `EventSource`, since it's a POST). Renders markdown subset safely (bold, lists, links) — **no raw HTML injection**.
+- Answer text contains inline `[n]` citation markers (ADR-005); the widget renders them as links/footnotes matching the `sources` event and never shows raw markers.
 - Shows source links under answers; shows the lead form on `lead_form` events (name, email, phone optional, message, consent checkbox with privacy link, hidden honeypot).
 - `visitor_id` and the open conversation id stored in `localStorage`, wrapped in try/catch (falls back to memory).
 - Accessibility: keyboard navigable, focus trap in open panel, ARIA labels, respects `prefers-reduced-motion`, sufficient contrast with tenant colour.
@@ -369,14 +371,14 @@ uv project, ruff/pyright/pytest config, docker-compose with pgvector, FastAPI ap
 `TenantConfig` + YAML loader + `bv tenants create`; `core/llm` (Anthropic, streaming, pricing, usage events, budget guard, retries); `core/embeddings`.
 *Accept:* unit tests with mocked providers; a `@live` test making one real call writes a `usage_events` row with non-zero cost.
 
-**M3 — Ingestion & retrieval**
+**M3 — Ingestion & retrieval** ✅ *done*
 Crawler, file parsers, chunking, FAQ import, `bv ingest`, hybrid retrieval with RRF, tenant isolation tests.
 *Accept:* `bv ingest bizvision` indexes bizvision.fi; re-running skips unchanged pages; a retrieval test returns relevant chunks for 5 sample Finnish queries; cross-tenant test passes.
 
 **M4 — Assistant graph**
 LangGraph pipeline (§7), prompts, persistence, `bv chat` terminal client, evals runner + `evals/bizvision.yaml`.
 Requirements learned from the M3 live retrieval run on bizvision.fi (see ADR-004):
-- **`rewrite_query` adds key terms in both Finnish and English**, including common acronyms and synonyms (e.g. "hakukoneoptimointi" → also "SEO", "verkkosivu" → also "website"). Retrieval is cross-language only weakly: a Finnish query does not reliably find a single English-only mention (the SEO case in `tests/test_live_bizvision.py`, an expected failure until this lands). It therefore also runs when the message is the first one in the conversation, unlike the "skip if standalone" shortcut in §7.1, as long as the term expansion is enabled.
+- **`rewrite_query` adds key terms in both Finnish and English**, including common acronyms and synonyms (e.g. "hakukoneoptimointi" → also "SEO", "verkkosivu" → also "website"). Retrieval is cross-language only weakly: a Finnish query does not reliably find a single English-only mention (the SEO case in `tests/test_live_bizvision.py`, an expected failure until this lands). It therefore runs on every message including the first: the "skip if standalone" shortcut in §7.1 applies only to the history-based reformulation, never to the fi/en term expansion (decided).
 - **The answer step returns structured output with an `answerable` flag** (plus the answer text and cited doc ids). The retrieval relevance threshold (`min_relevance`) is only the first filter; the model's own judgement that the context actually answers the question is the second. `answerable: false` takes the `dont_know_answer` + `offer_contact` path. Reason: relevance alone cannot separate "close but wrong" chunks from real answers (an unanswerable SEO question scored 0.418 on irrelevant chunks, above the provisional 0.37 threshold).
 - **Calibrate `min_relevance` on the eval set.** The value in `tenants/bizvision.yaml` (0.37) is provisional, from six live data points. Decide the final value, and whether to add IDF-weighted full-text search (candidate in ADR-004), on the M4 eval data.
 *Accept:* `bv chat bizvision` works in Finnish and English; evals ≥ 90 % pass, 100 % injection cases.

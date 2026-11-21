@@ -132,3 +132,26 @@ M3 turns a tenant's website, files and FAQ into searchable chunks. Running the c
 - A very large site needs `ingest.max_pages` raised for removal detection to work.
 - The DNS-rebinding gap is documented and must be closed before untrusted URLs are crawled.
 - Changing the crawler's identity rules (normalisation/canonical) later would orphan existing source rows; a reindex handles it.
+
+## ADR-005 — M4: assistant graph
+
+**Date:** 2026-11-21
+**Status:** Accepted
+
+### Context
+Spec §7 describes classify → rewrite_query → retrieve → answer, with separate dont_know/decline prompts and an answer step that cites doc ids. The M3 live run (ADR-004) showed that relevance alone cannot separate "close but wrong" chunks from real answers, and that fi→en retrieval needs term expansion on every message.
+
+### Decision
+- **classify + rewrite_query are one "understand" LLM call** returning `{intent, language, wants_human, search_query}`. Saves a sequential round trip (latency to first token) and a third of the pre-answer cost. `search_query` always carries Finnish *and* English key terms, acronyms and synonyms, on every message including the first; only the history-based reformulation is skipped when there is no history. Malformed output falls back to `intent=question`, `search_query=<raw message>`.
+- **Answer format: a header line, then streamed text.** The model's first line is `{"answerable": true|false}`. We buffer to the first newline: `false` → the stream is closed immediately (the model must not write the rest; usage is recorded through the existing early-close path, `estimated=true`) and the don't-know + offer-contact path runs; `true` → the rest is streamed. The header deliberately carries **no cited ids**: citations decided before the answer is written drift from the text.
+- **Citations are inline `[n]` markers** (n = doc index in `<context>`). Markers stay in the streamed text (the widget renders them in M6). At stream end we parse them and send `sources` only for ids that appear in the text *and* exist in the context, mapped to URLs (web sources only; FAQ and file docs have no URL).
+- **Malformed or missing header** (first line not valid JSON, or no newline within ~200 characters): log a warning (no content), treat as answerable and stream the buffered text as the start of the answer. Retrieval already passed `min_relevance`, so a false "don't know" is the worse failure. Header failures are counted and reported by the evals runner.
+- **dont_know and decline are static localized texts, not LLM calls.** Defaults live in `agents/assistant/messages.py` (fi/en), overridable per tenant via optional `assistant.messages.{dont_know,decline}` in `TenantConfig`. Only smalltalk keeps an LLM call. There are no `dont_know.md`/`decline.md` prompts.
+- **The answer call receives the last `history_turns`** as well and always answers in the user's language, even when the context is in the other language.
+- **Evals** record time-to-first-token per case and report median/p90 per model alongside pass rate and cost.
+
+### Consequences
+- Fewer LLM calls and lower latency; a deviation from the spec text (§7.1 updated).
+- A model that ignores the header protocol degrades to "always answerable" rather than failing; the header-failure counter makes that visible.
+- Inline markers mean the raw stream contains `[n]` until the widget (M6) renders them.
+- Static refusal texts cannot adapt to the question; acceptable for phase 1, tenants can override wording.

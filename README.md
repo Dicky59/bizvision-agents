@@ -38,6 +38,18 @@ uv run bv tenants show bizvision
 uv run bv tenants list
 ```
 
+## Knowledge base (ingestion & retrieval)
+
+Needs `OPENAI_API_KEY` in `.env` (embeddings). Re-running any of these skips unchanged content.
+
+```bash
+uv run bv ingest bizvision --dry-run            # crawl + show extraction only (no embeddings, no DB writes)
+uv run bv ingest bizvision                      # crawl the tenant's website and index it
+uv run bv ingest bizvision --files docs/a.pdf --files docs/b.md   # index local files instead of crawling
+uv run bv faq import bizvision faq/bizvision.yaml   # FAQ becomes exactly the entries in the file
+uv run bv search bizvision "Paljonko AI-asiakaspalvelija maksaa?" --lang fi --top-k 5
+```
+
 ## Production database (Neon)
 
 Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);
