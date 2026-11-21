@@ -50,6 +50,16 @@ uv run bv faq import bizvision faq/bizvision.yaml   # FAQ becomes exactly the en
 uv run bv search bizvision "Paljonko AI-asiakaspalvelija maksaa?" --lang fi --top-k 5
 ```
 
+## Chat with the assistant (terminal)
+
+Needs `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` in `.env` and an ingested tenant. Uses the same
+graph, guards and persistence as the API will; empty line or `/quit` leaves and prints the session cost.
+
+```bash
+uv run bv chat bizvision                       # language detected per message
+uv run bv chat bizvision --lang en --show-debug   # intent, search query, relevance, timings
+```
+
 ## Production database (Neon)
 
 Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);

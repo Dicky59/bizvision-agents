@@ -22,10 +22,25 @@ from core.embeddings.client import EmbeddingClient
 from core.embeddings.openai_provider import OpenAIEmbeddingProvider
 from core.ingest.crawler import DEFAULT_DELAY, make_client
 from core.ingest.safety import Resolver, system_resolver
+from core.llm.anthropic_provider import AnthropicProvider
+from core.llm.budget import BudgetGuard
+from core.llm.client import LLMClient
 from core.tenants.config import TenantConfig
 from core.tenants.repository import get_by_slug
 
 SessionMaker = async_sessionmaker[AsyncSession]
+
+
+def _default_llm(sessionmaker: SessionMaker) -> LLMClient:
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        raise _fail("ANTHROPIC_API_KEY is not set (copy .env.example to .env and fill it in)")
+    return LLMClient(
+        AnthropicProvider(settings.anthropic_api_key),
+        sessionmaker,
+        BudgetGuard(sessionmaker),
+        settings.eur_per_usd,
+    )
 
 
 @dataclass(frozen=True)
@@ -34,6 +49,7 @@ class Deps:
     make_client: Callable[[], httpx.AsyncClient]
     resolver: Resolver
     delay: float
+    make_llm: Callable[[SessionMaker], LLMClient] = _default_llm
 
 
 def _default_embedder(sessionmaker: SessionMaker) -> EmbeddingClient:
