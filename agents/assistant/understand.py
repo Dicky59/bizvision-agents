@@ -47,10 +47,13 @@ def parse_understanding(text: str, req: AssistantRequest) -> Understanding:
 
     intent: Intent = data["intent"] if data.get("intent") in INTENTS else "question"
     raw_lang = data.get("language")
-    other = raw_lang == "other"
+    code = raw_lang.strip().lower() if isinstance(raw_lang, str) else ""
+    # Any language code other than fi/en (or the literal "other") is an unsupported language:
+    # the reply is English with a polite note (spec §2); retrieval uses English.
+    other = bool(code) and code not in ("fi", "en")
     language: Lang
-    if raw_lang in ("fi", "en"):
-        language = raw_lang
+    if code in ("fi", "en"):
+        language = "fi" if code == "fi" else "en"
     elif other:
         language = "en"
     else:

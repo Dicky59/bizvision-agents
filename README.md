@@ -60,6 +60,18 @@ uv run bv chat bizvision                       # language detected per message
 uv run bv chat bizvision --lang en --show-debug   # intent, search query, relevance, timings
 ```
 
+## Evals
+
+```bash
+uv run bv evals run bizvision --repeat 3                       # golden set, tenant's model
+uv run bv evals run bizvision --model claude-haiku-5-5 --model claude-sonnet-5-5 --repeat 3
+uv run bv evals run bizvision --only seo-fi --repeat 6         # a single case, repeated
+```
+
+Real API calls (Haiku run: about EUR 0.04; Sonnet about 20x). Prints pass rate, injection rate,
+TTFT median/p90, cost, flaky cases and a min_relevance calibration table; exits 1 below target
+(>= 90 % pass, 100 % injection). Cases live in `evals/<slug>.yaml`.
+
 ## Production database (Neon)
 
 Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);

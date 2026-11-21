@@ -375,12 +375,12 @@ uv project, ruff/pyright/pytest config, docker-compose with pgvector, FastAPI ap
 Crawler, file parsers, chunking, FAQ import, `bv ingest`, hybrid retrieval with RRF, tenant isolation tests.
 *Accept:* `bv ingest bizvision` indexes bizvision.fi; re-running skips unchanged pages; a retrieval test returns relevant chunks for 5 sample Finnish queries; cross-tenant test passes.
 
-**M4 — Assistant graph**
+**M4 — Assistant graph** ✅ *done* (final eval run: 96/96, injection 18/18; see ADR-005)
 LangGraph pipeline (§7), prompts, persistence, `bv chat` terminal client, evals runner + `evals/bizvision.yaml`.
 Requirements learned from the M3 live retrieval run on bizvision.fi (see ADR-004):
 - **`rewrite_query` adds key terms in both Finnish and English**, including common acronyms and synonyms (e.g. "hakukoneoptimointi" → also "SEO", "verkkosivu" → also "website"). Retrieval is cross-language only weakly: a Finnish query does not reliably find a single English-only mention (the SEO case in `tests/test_live_bizvision.py`, an expected failure until this lands). It therefore runs on every message including the first: the "skip if standalone" shortcut in §7.1 applies only to the history-based reformulation, never to the fi/en term expansion (decided).
 - **The answer step returns structured output with an `answerable` flag** (plus the answer text and cited doc ids). The retrieval relevance threshold (`min_relevance`) is only the first filter; the model's own judgement that the context actually answers the question is the second. `answerable: false` takes the `dont_know_answer` + `offer_contact` path. Reason: relevance alone cannot separate "close but wrong" chunks from real answers (an unanswerable SEO question scored 0.418 on irrelevant chunks, above the provisional 0.37 threshold).
-- **Calibrate `min_relevance` on the eval set.** The value in `tenants/bizvision.yaml` (0.37) is provisional, from six live data points. Decide the final value, and whether to add IDF-weighted full-text search (candidate in ADR-004), on the M4 eval data.
+- **Calibrate `min_relevance` on the eval set.** Calibrated on the M4 eval data to 0.31; IDF-weighted full-text search was not needed (ADR-005).
 *Accept:* `bv chat bizvision` works in Finnish and English; evals ≥ 90 % pass, 100 % injection cases.
 
 **M5 — Public API**

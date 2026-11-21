@@ -129,6 +129,23 @@ def test_parse_other_language_replies_in_english() -> None:
     assert u.other_language and u.language == "en"
 
 
+@pytest.mark.parametrize("code", ["sv", "de", "SV", " et ", "other"])
+def test_parse_any_non_fi_en_code_is_an_unsupported_language(code: str) -> None:
+    u = parse_understanding(
+        f'{{"intent":"question","language":"{code}","search_query":"x"}}', req("Hej!")
+    )
+    assert u.other_language and u.language == "en"
+
+
+def test_parse_fi_en_codes_and_missing_language() -> None:
+    fi = parse_understanding('{"intent":"question","language":"FI","search_query":"x"}', req())
+    en = parse_understanding('{"intent":"question","language":"en","search_query":"x"}', req())
+    missing = parse_understanding('{"intent":"question","search_query":"x"}', req("What is this?"))
+    assert (fi.language, fi.other_language) == ("fi", False)
+    assert (en.language, en.other_language) == ("en", False)
+    assert not missing.other_language  # falls back to the detector
+
+
 def test_parse_wants_human_must_be_true_boolean() -> None:
     no = parse_understanding('{"intent":"question","wants_human":"yes"}', req())
     yes = parse_understanding('{"intent":"question","wants_human":true}', req())

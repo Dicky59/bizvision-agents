@@ -68,8 +68,10 @@ _LANGUAGE_RULE: dict[str, str] = {
     "fi": "Answer in Finnish.",
     "en": "Answer in English.",
     "other": (
-        "The visitor writes in a language you do not support. Answer in English and politely "
-        "say that you can only help in Finnish and English."
+        "The visitor writes in a language you do not support (you only support Finnish and "
+        "English). Write your reply in English, even though the context may be in Finnish: begin "
+        "with one short polite sentence saying that you can only help in Finnish and English, "
+        "then answer the question."
     ),
 }
 
@@ -127,6 +129,7 @@ class Assistant:
                     {
                         "intent": u.intent,
                         "language": u.language,
+                        "other_language": u.other_language,
                         "wants_human": u.wants_human,
                         "search_query": u.search_query,
                         "understand_parse_failed": u.parse_failed,
@@ -185,7 +188,11 @@ class Assistant:
             )
             messages = [
                 *recent_history(req.history, cfg.assistant.history_turns),
-                Message("user", f"{context}\n\n<question>\n{req.message}\n</question>"),
+                Message(
+                    "user",
+                    f"{context}\n\n<question>\n{req.message}\n</question>\n\n"
+                    f"Reminder: {_language_rule(u)}",
+                ),
             ]
             gate = HeaderGate()
             parts: list[str] = []
