@@ -37,6 +37,21 @@ class SourceRef:
 
 
 @dataclass(frozen=True)
+class Meta:
+    """First event of a chat turn."""
+
+    conversation_id: uuid.UUID
+
+
+@dataclass(frozen=True)
+class Error:
+    """User-safe failure (already in the conversation language); details are only logged."""
+
+    code: str
+    message: str
+
+
+@dataclass(frozen=True)
 class Token:
     text: str
 
@@ -68,6 +83,7 @@ class Done:
     relevance: float | None
     header_failed: bool
     lead_form: bool
+    message_id: uuid.UUID | None = None  # the persisted assistant message, set by ChatService
 
 
-Event = Token | Sources | LeadForm | Debug | Done
+Event = Meta | Token | Sources | LeadForm | Debug | Error | Done
