@@ -84,6 +84,7 @@ uv run uvicorn api.main:app --reload --port 8000
 | `POST /v1/assistant/{tenant}/chat` | SSE stream: `meta`, `token`*, `sources`, `lead_form`, `done`, `error` |
 | `POST /v1/assistant/{tenant}/leads` | Lead with explicit consent; the tenant is notified by email |
 | `/v1/admin/...` | Tenants, ingest, files, FAQ, usage, leads (`Authorization: Bearer $ADMIN_API_KEY`) |
+| `GET /widget.v1.js` | The built widget (`Cache-Control: public, max-age=86400`) |
 | `GET /healthz` | Liveness |
 
 Public routes require an `Origin` listed in the tenant's `allowed_origins`. Relevant env vars:
@@ -98,6 +99,30 @@ uv run bv cleanup                              # retention: expired conversation
 uv run bv usage bizvision --month 2026-11
 uv run pytest -m live -k resend                # sends ONE real test email to the handoff address
 ```
+
+
+## Widget
+
+One script tag on the customer's site (Shadow DOM, no runtime dependencies, about 11 KB gzipped):
+
+```html
+<script src="https://agents.bizvision.fi/widget.v1.js" data-tenant="bizvision" defer></script>
+```
+
+Optional attributes: `data-lang="fi|en"` (default `<html lang>`), `data-position="bottom-left|bottom-right"`, `data-open="true"`, `data-api` (API base URL; default is the script's own origin).
+
+```bash
+cd widget && npm install
+npm run dev                                   # test pages on http://localhost:5173 (needs the API on :8000)
+npm run build                                 # -> widget/dist/widget.js (fails above 40 KB gzipped)
+npm run typecheck && npm run lint && npm test # unit tests (SSE parser, Markdown/XSS, storage, colours)
+npx playwright install                        # once: chromium, firefox, webkit
+npm run test:e2e                              # 5 browser profiles against a mocked API
+npm run a11y:lighthouse                       # accessibility >= 95 (dev server + API running)
+LIVE=1 npx playwright test e2e/live.spec.ts --project=chromium   # real API and LLM, never sends a lead
+```
+
+The API serves the built file at `/widget.v1.js`; add the site to the tenant's `allowed_origins` (`http://localhost:5173` is there for the dev pages and must be removed before go-live).
 
 ## Production database (Neon)
 

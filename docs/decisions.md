@@ -199,3 +199,27 @@ The assistant had to be exposed over HTTP for the widget, with lead capture and 
 - Rate-limit counters reset on restart and are not shared across instances; revisit before scaling out.
 - A captcha is deliberately absent; add Turnstile if the lead form is abused.
 - Background ingest and notification run inside the API process: a restart can interrupt a crawl (the job row stays `running`) or lose an in-flight notification (recoverable with `notify-pending`).
+
+---
+
+## ADR-007 — M6: the embeddable widget (2026-11-22)
+
+### Context
+The widget runs on customer websites we do not control, so it must not break them (or be broken by their CSS), must not open an XSS hole through model output, and must stay small. It talks only to the three public endpoints from M5.
+
+### Decisions
+- **No framework, zero runtime dependencies**: TypeScript + Vite library build (IIFE, one `widget.js`, 10.8 KB gzipped; the build fails above the 40 KB budget). A Shadow DOM isolates styles both ways; `all: initial` on the widget root also stops *inherited* host properties (an E2E test with a hostile host page found `letter-spacing` leaking in through the shadow boundary).
+- **Model output never becomes markup.** A small own Markdown subset (paragraphs, bold, lists, links) builds DOM nodes with `textContent`; only `http(s)` link targets are rendered; ESLint bans `innerHTML`/`outerHTML`/`insertAdjacentHTML` in `src/`. Chosen over a Markdown library plus a sanitizer to keep the bundle small and the attack surface obvious.
+- **Hand-written SSE parser over `fetch`** (we POST, so `EventSource` is out): handles chunk boundaries, CRLF/CR, multi-line data and multi-byte characters split across chunks (`TextDecoder` in streaming mode).
+- **Citations: the `sources` event carries `ns`**, the `[n]` ids that resolve to each page (ADR-005 markers are context-doc indexes, and several chunks can come from one page). The widget renders a marker as a numbered link to its source, back-to-back markers of one page as a single one, and **removes markers with no URL** (FAQ and file documents), so raw `[n]` never shows.
+- **Conversation state**: `visitor_id` in `localStorage`; the visible thread (last 30 messages) and `conversation_id` in `sessionStorage`, so a conversation survives navigation within the tab and is gone when the tab closes. No new API endpoint and no message contents stored beyond the tab. All storage access is wrapped in try/catch with an in-memory fallback.
+- **Accessibility**: answers are announced once, on completion (a polite live region), not token by token. The desktop panel is non-modal (no focus trap; Tab must reach the page); the full-screen mobile layout is modal and traps focus; Escape closes in both. The tenant's primary colour is validated and the text colours on and over it are derived to meet WCAG AA, so a tenant colour cannot break contrast.
+- **The API serves the bundle** at `/widget.v1.js` (`Cache-Control: public, max-age=86400`), and exposes `Retry-After` through CORS: without `Access-Control-Expose-Headers` browser code cannot read it on a cross-origin 429.
+- **Testing**: vitest for the parser, Markdown (XSS payloads), storage and colours; Playwright against a mocked API on chromium, firefox, webkit and two mobile profiles; axe (WCAG 2.2 AA) on the chat view and the lead form; Lighthouse accessibility (score 100, gate at 95) on a clean host page against the real API; one manual live smoke test (`LIVE=1`) that never submits the lead form.
+
+### Consequences
+- Real Safari on iOS (on-screen keyboard, `dvh`) is only approximated by Playwright WebKit and must be checked by hand before go-live, as must Android.
+- The widget's own UI strings follow the page language (`data-lang` or `<html lang>`); the assistant's answers follow the visitor's language, so they can differ.
+- Embedding needs the host site's CSP to allow the script and the API (an M7 checklist item).
+- Mid-stream failures keep the partial answer; there is no automatic reconnect.
+
