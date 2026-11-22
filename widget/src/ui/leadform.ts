@@ -94,7 +94,7 @@ export function createLeadForm(d: LeadFormDeps): LeadForm {
 
   const privacyUrl = safeHttpUrl(d.config.privacy_notice_url[d.lang] ?? "");
   const consentLabel = el("label", { for: "bv-lf-consent", class: "consent-text" });
-  consentLabel.append(fmt(t.consent_pre, { company: d.config.name }));
+  consentLabel.append(fmt(t.consent_pre, { company: d.config.display_name ?? d.config.name }));
   if (privacyUrl) {
     const a = el(
       "a",

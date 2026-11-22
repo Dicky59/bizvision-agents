@@ -2,6 +2,8 @@ export type Lang = "fi" | "en";
 
 export interface WidgetConfig {
   name: string;
+  /** Short name for running text; the API always sends it, older APIs may not. */
+  display_name?: string;
   languages: Lang[];
   default_language: Lang;
   greeting: Partial<Record<Lang, string>>;

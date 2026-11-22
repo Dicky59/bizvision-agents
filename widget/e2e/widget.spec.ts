@@ -138,7 +138,7 @@ test("lead form: validation, honeypot, consent link, successful submit", async (
   const form = page.locator("form.lead");
   await expect(form).toBeVisible();
   await expect(page.locator("#bv-lf-name")).toBeFocused();
-  await expect(form.locator("a")).toHaveAttribute("href", "https://bizvision.fi/tietosuoja");
+  await expect(form.locator("a")).toHaveAttribute("href", "https://www.bizvision.fi/tietosuoja");
   await expect(form.locator("input[name=website]")).toHaveAttribute("tabindex", "-1");
 
   await form.locator("button[type=submit]").click();

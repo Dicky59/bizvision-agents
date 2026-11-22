@@ -4,6 +4,7 @@ export const API = "http://localhost:8000";
 export const CONVERSATION = "0b9f6f7c-2f55-4c4c-9d0e-1c6c4f9a1b11";
 
 export const CONFIG = {
+  display_name: "BizVision",
   name: "BizVision Oy",
   languages: ["fi", "en"],
   default_language: "fi",
@@ -13,11 +14,11 @@ export const CONFIG = {
     en: ["What services do you offer?", "How does a project work?"],
   },
   launcher_label: { fi: "Kysy meiltä", en: "Ask us" },
-  primary_color: "#1f6f8b",
+  primary_color: "#1D7A82",
   position: "bottom-right",
   privacy_notice_url: {
-    fi: "https://bizvision.fi/tietosuoja",
-    en: "https://bizvision.fi/en/privacy",
+    fi: "https://www.bizvision.fi/tietosuoja",
+    en: "https://www.bizvision.fi/en/privacy",
   },
   privacy_notice_version: "2026-11",
   max_message_chars: 1500,
