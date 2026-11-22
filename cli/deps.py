@@ -25,6 +25,7 @@ from core.ingest.safety import Resolver, system_resolver
 from core.llm.anthropic_provider import AnthropicProvider
 from core.llm.budget import BudgetGuard
 from core.llm.client import LLMClient
+from core.notify.sender import EmailSender, make_sender
 from core.tenants.config import TenantConfig
 from core.tenants.repository import get_by_slug
 
@@ -43,6 +44,13 @@ def _default_llm(sessionmaker: SessionMaker) -> LLMClient:
     )
 
 
+def _default_sender() -> EmailSender:
+    settings = get_settings()
+    if not settings.resend_api_key:
+        raise _fail("RESEND_API_KEY is not set (copy .env.example to .env and fill it in)")
+    return make_sender(settings.resend_api_key, settings.email_from)
+
+
 @dataclass(frozen=True)
 class Deps:
     make_embedder: Callable[[SessionMaker], EmbeddingClient]
@@ -50,6 +58,7 @@ class Deps:
     resolver: Resolver
     delay: float
     make_llm: Callable[[SessionMaker], LLMClient] = _default_llm
+    make_sender: Callable[[], EmailSender] = _default_sender
 
 
 def _default_embedder(sessionmaker: SessionMaker) -> EmbeddingClient:

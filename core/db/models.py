@@ -149,6 +149,7 @@ class Lead(IdTimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(64))
     message: Mapped[str | None] = mapped_column(Text)
+    language: Mapped[str | None] = mapped_column(String(8))
     consent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     privacy_notice_version: Mapped[str] = mapped_column(String(32), nullable=False)
     notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

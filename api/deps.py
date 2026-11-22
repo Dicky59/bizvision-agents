@@ -66,6 +66,7 @@ class ApiDeps:
     sender: Callable[[], EmailSender] = default_sender
     limiter: RateLimiter = field(default_factory=InMemoryLimiter)
     trusted_proxy_count: Callable[[], int] = _proxy_count
+    notify_backoff: tuple[float, ...] = (1.0, 4.0)  # delays between email send attempts
 
 
 def get_deps(request: Request) -> ApiDeps:
