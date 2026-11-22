@@ -62,7 +62,9 @@ async def test_sse_event_sequence_and_persistence(sessionmaker: SM) -> None:
             "".join(d["text"] for k, d in events if k == "token")
             == "Kyllä, tarjoamme SEO-palvelua [1]."
         )
-        assert events[-2][1]["items"] == [{"title": "Page 1", "url": "https://acme.fi/seo"}]
+        assert events[-2][1]["items"] == [
+            {"ns": [1], "title": "Page 1", "url": "https://acme.fi/seo"}
+        ]
         assert uuid.UUID(events[0][1]["conversation_id"])
         assert uuid.UUID(events[-1][1]["message_id"])
         assert await count_messages(sessionmaker, t.id) == 2  # user + assistant

@@ -19,6 +19,7 @@ def create_app(deps: ApiDeps | None = None) -> FastAPI:
         origin_check=make_origin_check(lambda: app.state.deps.sessionmaker()),
     )
     app.include_router(widget.router)
+    app.include_router(widget.script_router)
     app.include_router(assistant.router)
     app.include_router(leads.router)
     app.include_router(admin.router)

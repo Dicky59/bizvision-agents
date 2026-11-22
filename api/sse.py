@@ -39,7 +39,10 @@ def encode(ev: Event) -> bytes | None:
         case Token(text=text):
             return frame("token", {"text": text})
         case Sources(items=items):
-            return frame("sources", {"items": [{"title": i.title, "url": i.url} for i in items]})
+            return frame(
+                "sources",
+                {"items": [{"ns": list(i.ns), "title": i.title, "url": i.url} for i in items]},
+            )
         case LeadForm(reason=reason):
             return frame("lead_form", {"reason": reason})
         case Error(code=code, message=message):

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from api.deps import ApiDeps
@@ -59,3 +61,20 @@ async def test_preflight(sessionmaker: SM) -> None:
 async def test_healthz_needs_no_origin() -> None:
     async with client_for(ApiDeps()) as c:
         assert (await c.get("/healthz")).status_code == 200
+
+
+async def test_widget_script_served_with_cache_header(tmp_path: Path) -> None:
+    (tmp_path / "widget.js").write_text("(()=>{})();", encoding="utf-8")
+    async with client_for(ApiDeps(widget_dist=tmp_path)) as c:
+        r = await c.get("/widget.v1.js")  # no Origin: a script tag does not send one
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/javascript")
+    assert r.headers["cache-control"] == "public, max-age=86400"
+    assert r.text == "(()=>{})();"
+
+
+async def test_widget_script_404_when_not_built(tmp_path: Path) -> None:
+    async with client_for(ApiDeps(widget_dist=tmp_path)) as c:
+        r = await c.get("/widget.v1.js")
+    assert r.status_code == 404
+    assert r.json() == {"error": {"code": "widget_not_built"}}

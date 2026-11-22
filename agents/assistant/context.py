@@ -42,16 +42,17 @@ def build_context(chunks: Sequence[RetrievedChunk]) -> tuple[str, dict[int, Cont
 def extract_sources(text: str, docs: dict[int, ContextDoc]) -> list[SourceRef]:
     """Sources for ids that appear as [n] in the text AND exist in the context; web docs only
     (FAQ and file docs have no URL). Deduplicated by URL, in order of first citation."""
-    seen: set[str] = set()
-    out: list[SourceRef] = []
+    by_url: dict[str, tuple[str, list[int]]] = {}  # insertion order = first citation
     for m in _MARKER.finditer(text):
         for raw in m.group(1).split(","):
-            doc = docs.get(int(raw))
-            if doc is None or doc.url is None or doc.url in seen:
+            n = int(raw)
+            doc = docs.get(n)
+            if doc is None or doc.url is None:
                 continue
-            seen.add(doc.url)
-            out.append(SourceRef(title=doc.title, url=doc.url))
-    return out
+            _, ns = by_url.setdefault(doc.url, (doc.title, []))
+            if n not in ns:
+                ns.append(n)
+    return [SourceRef(title=t, url=u, ns=tuple(ns)) for u, (t, ns) in by_url.items()]
 
 
 def recent_history(history: Sequence[Message], turns: int) -> list[Message]:

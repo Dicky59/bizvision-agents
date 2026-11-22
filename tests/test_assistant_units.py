@@ -247,6 +247,21 @@ def test_extract_sources_only_cited_existing_web_docs() -> None:
     assert urls == ["https://acme.fi/a"]  # 3 is FAQ (no url), 9 missing, 2 not cited, 1 deduped
 
 
+def test_extract_sources_collects_all_markers_of_one_page() -> None:
+    _, docs = build_context(
+        [
+            chunk(1, "https://acme.fi/a"),
+            chunk(2, "https://acme.fi/a"),
+            chunk(3, "https://acme.fi/b"),
+        ]
+    )
+    src = extract_sources("[2] ja [3] sekä [1, 2]", docs)
+    assert [(s.url, s.ns) for s in src] == [
+        ("https://acme.fi/a", (2, 1)),
+        ("https://acme.fi/b", (3,)),
+    ]
+
+
 def test_extract_sources_order_of_first_citation() -> None:
     _, docs = build_context([chunk(1, "https://acme.fi/a"), chunk(2, "https://acme.fi/b")])
     assert [s.url for s in extract_sources("[2] then [1]", docs)] == [

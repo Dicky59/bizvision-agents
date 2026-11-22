@@ -6,6 +6,7 @@ External collaborators are injectable (`ApiDeps`) so tests need no keys and no n
 import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Annotated
 
 import httpx
@@ -31,6 +32,8 @@ from core.tenants.service import ResolvedTenant, resolve_public_tenant
 log = logging.getLogger(__name__)
 
 SessionMaker = async_sessionmaker[AsyncSession]
+
+DEFAULT_WIDGET_DIST = Path(__file__).resolve().parent.parent / "widget" / "dist"
 
 _chat_service: ChatService | None = None
 _embedder: EmbeddingClient | None = None
@@ -92,6 +95,7 @@ class ApiDeps:
     crawl_client: Callable[[], httpx.AsyncClient] = make_client
     resolver: Resolver = system_resolver
     crawl_delay: float = DEFAULT_DELAY
+    widget_dist: Path = DEFAULT_WIDGET_DIST  # where `npm run build` puts widget.js
 
 
 def get_deps(request: Request) -> ApiDeps:

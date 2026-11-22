@@ -34,6 +34,9 @@ class Understanding:
 class SourceRef:
     title: str
     url: str
+    # Every context-doc id cited in the answer that resolves to this URL, so a client can map
+    # each inline [n] marker to a source even when several chunks come from one page.
+    ns: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
