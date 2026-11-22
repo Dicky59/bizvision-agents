@@ -41,8 +41,8 @@ ingest:
 handoff:
   email: info@bizvision.fi
   privacy_notice_url:
-    fi: https://bizvision.fi/tietosuoja
-    en: https://bizvision.fi/en/privacy
+    fi: https://www.bizvision.fi/tietosuoja
+    en: https://www.bizvision.fi/en/privacy
   privacy_notice_version: "2026-11"
   include_transcript: true
   lead_retention_days: 365
@@ -55,6 +55,7 @@ limits:
 retention_days: 90
 
 branding:
-  primary_color: "#1f6f8b"
+  display_name: BizVision
+  primary_color: "#1D7A82"
   position: bottom-right
   launcher_label: { fi: "Kysy meiltä", en: "Ask us" }

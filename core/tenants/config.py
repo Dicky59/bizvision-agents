@@ -65,6 +65,8 @@ class BrandingConfig(_Strict):
     primary_color: str = Field(default="#1f6f8b", pattern=r"^#[0-9a-fA-F]{6}$")
     position: Literal["bottom-right", "bottom-left"] = "bottom-right"
     launcher_label: dict[Lang, str] = {}
+    # Short name used in running text (e.g. the consent sentence); falls back to `name`.
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class TenantConfig(_Strict):

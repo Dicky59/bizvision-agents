@@ -29,6 +29,12 @@ def test_minimal_config_gets_defaults() -> None:
     assert cfg.limits.monthly_budget_eur == 30
 
 
+def test_display_name_is_optional_and_set_for_bizvision() -> None:
+    assert TenantConfig.model_validate(MIN).branding.display_name is None
+    cfg = load_yaml(ROOT / "tenants" / "bizvision.yaml")
+    assert cfg.name == "BizVision Oy" and cfg.branding.display_name == "BizVision"
+
+
 @pytest.mark.parametrize(
     "patch",
     [

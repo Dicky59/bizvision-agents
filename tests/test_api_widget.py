@@ -20,6 +20,7 @@ async def test_config_for_allowed_origin(sessionmaker: SM) -> None:
     body = r.json()
     assert body["greeting"] == {"fi": "Hei!"}
     assert body["privacy_notice_version"] == "v1"
+    assert body["display_name"] == body["name"]  # no branding.display_name -> falls back
     assert body["max_message_chars"] == 1500
     # whitelist: no handoff address, no model, no budget
     text = r.text

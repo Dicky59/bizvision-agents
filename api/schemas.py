@@ -7,6 +7,7 @@ from core.tenants.config import Lang, TenantConfig
 
 class WidgetConfig(BaseModel):
     name: str
+    display_name: str
     languages: list[Lang]
     default_language: Lang
     greeting: dict[Lang, str]
@@ -22,6 +23,7 @@ class WidgetConfig(BaseModel):
 def widget_config(cfg: TenantConfig) -> WidgetConfig:
     return WidgetConfig(
         name=cfg.name,
+        display_name=cfg.branding.display_name or cfg.name,
         languages=cfg.languages,
         default_language=cfg.default_language,
         greeting=cfg.assistant.greeting,
