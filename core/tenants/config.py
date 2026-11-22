@@ -58,6 +58,7 @@ class LimitsConfig(_Strict):
     monthly_budget_eur: float = Field(default=30, ge=0)
     messages_per_conversation: int = Field(default=40, ge=1)
     max_message_chars: int = Field(default=1500, ge=1)
+    chat_requests_per_day: int = Field(default=2000, ge=1)
 
 
 class BrandingConfig(_Strict):
