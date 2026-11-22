@@ -131,6 +131,8 @@ handoff:
     fi: https://bizvision.fi/tietosuoja
     en: https://bizvision.fi/en/privacy
   privacy_notice_version: "2026-11"
+  include_transcript: true       # visitor messages summarised in the notification email
+  lead_retention_days: 365       # `bv cleanup` deletes older leads
 
 limits:
   monthly_budget_eur: 30           # hard stop → assistant shows fallback message + contact form
@@ -158,7 +160,8 @@ DATABASE_URL_DIRECT=postgresql+asyncpg://bv:bv@localhost:5432/bv   # used by Ale
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=                 # embeddings
 RESEND_API_KEY=
-EMAIL_FROM="BizVision AI <ai@bizvision.fi>"
+EMAIL_FROM="BizVision AI <ai@notify.bizvision.fi>"   # sending subdomain: the main domain's mail is on Fastmail
+TRUSTED_PROXY_COUNT=0           # prod behind Caddy: 1 (client IP from X-Forwarded-For)
 ADMIN_API_KEY=                  # long random string
 PUBLIC_BASE_URL=http://localhost:8000
 LOG_LEVEL=INFO
@@ -392,6 +395,7 @@ Vite build, Shadow DOM UI, streaming, sources, lead form, i18n, a11y, mobile lay
 *Accept:* works against local API in Chrome, Firefox, Safari (or WebKit) and mobile viewport; bundle size within target; Lighthouse a11y ≥ 95 on the test page.
 
 **M7 — Deploy & go live**
+**Checklist before go-live:** remove `localhost` origins (`:3000`, `:5173`) from the production tenant config; set `TRUSTED_PROXY_COUNT=1`; production `ADMIN_API_KEY` in the host's secret store; privacy notice covers all processors (Anthropic, OpenAI, Resend, Neon, API host) and `privacy_notice_version` matches it.
 Neon project (EU, Frankfurt) with `main` and `dev` branches; Dockerfile, production compose (`api` + `caddy`), weekly `pg_dump` script, deploy script/workflow; embed on bizvision.fi (change in the `bizvision` repo).
 *Accept:* migrations applied to Neon `main`; `https://agents.bizvision.fi/healthz` OK; widget live on bizvision.fi; a test lead arrives at info@bizvision.fi; monthly usage visible via `bv usage bizvision`.
 

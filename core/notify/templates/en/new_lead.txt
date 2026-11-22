@@ -1,0 +1,25 @@
+New lead ({{ lead.tenant_name }} / AI assistant)
+
+Name: {{ lead.name }}
+Email: {{ lead.email }}
+{% if lead.phone %}
+Phone: {{ lead.phone }}
+{% endif %}
+{% if lead.page_url %}
+Page: {{ lead.page_url }}
+{% endif %}
+{% if lead.message %}
+
+Message:
+{{ lead.message }}
+{% endif %}
+{% if transcript %}
+
+Conversation summary (latest messages):
+{% for line in transcript %}
+- {{ "Visitor" if line.role == "user" else "Assistant" }}: {{ line.content }}
+{% endfor %}
+{% endif %}
+
+Consent given: {{ consent }} (privacy notice {{ lead.privacy_notice_version }}).
+This message was sent automatically. Answer the visitor directly at {{ lead.email }}.

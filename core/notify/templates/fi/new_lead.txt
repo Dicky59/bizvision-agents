@@ -1,0 +1,25 @@
+Uusi yhteydenotto ({{ lead.tenant_name }} / tekoälyassistentti)
+
+Nimi: {{ lead.name }}
+Sähköposti: {{ lead.email }}
+{% if lead.phone %}
+Puhelin: {{ lead.phone }}
+{% endif %}
+{% if lead.page_url %}
+Sivu: {{ lead.page_url }}
+{% endif %}
+{% if lead.message %}
+
+Viesti:
+{{ lead.message }}
+{% endif %}
+{% if transcript %}
+
+Keskustelun tiivistelmä (viimeisimmät viestit):
+{% for line in transcript %}
+- {{ "Kävijä" if line.role == "user" else "Assistentti" }}: {{ line.content }}
+{% endfor %}
+{% endif %}
+
+Suostumus annettu: {{ consent }} (tietosuojaseloste {{ lead.privacy_notice_version }}).
+Tämä viesti on lähetetty automaattisesti. Vastaa kävijälle suoraan osoitteeseen {{ lead.email }}.

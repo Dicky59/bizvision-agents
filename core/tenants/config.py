@@ -48,6 +48,10 @@ class HandoffConfig(_Strict):
     email: EmailStr
     privacy_notice_url: dict[Lang, str] = {}
     privacy_notice_version: str
+    # Whether the notification email carries a summary of the visitor's messages.
+    include_transcript: bool = True
+    # Leads are personal data: `bv cleanup` deletes leads older than this.
+    lead_retention_days: int = Field(default=365, ge=1, le=3650)
 
 
 class LimitsConfig(_Strict):

@@ -1,0 +1,1 @@
+Uusi yhteydenotto chatbotista: {{ lead.name }}

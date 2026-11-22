@@ -4,6 +4,7 @@ allowed_origins:
   - https://bizvision.fi
   - https://www.bizvision.fi
   - http://localhost:3000
+  - http://localhost:5173   # widget dev test page (Vite); remove before go-live (spec M7)
 languages: [fi, en]
 default_language: fi
 
@@ -43,6 +44,8 @@ handoff:
     fi: https://bizvision.fi/tietosuoja
     en: https://bizvision.fi/en/privacy
   privacy_notice_version: "2026-11"
+  include_transcript: true
+  lead_retention_days: 365
 
 limits:
   monthly_budget_eur: 30

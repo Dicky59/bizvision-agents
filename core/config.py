@@ -12,9 +12,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     resend_api_key: str = ""
-    email_from: str = "BizVision AI <ai@bizvision.fi>"
+    email_from: str = "BizVision AI <ai@notify.bizvision.fi>"
     admin_api_key: str = ""
     public_base_url: str = "http://localhost:8000"
+    trusted_proxy_count: int = 0
     log_level: str = "INFO"
     eur_per_usd: float = 0.92
 

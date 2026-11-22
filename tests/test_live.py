@@ -73,3 +73,38 @@ async def test_live_openai_embeddings(sessionmaker: SM, tenant_id: uuid.UUID) ->
     assert len(vectors) == 1 and len(vectors[0]) == EMBEDDING_DIM
     (row,) = await rows(sessionmaker, tenant_id)
     assert row.operation == "embed" and row.input_tokens > 0 and float(row.cost_eur) > 0
+
+
+async def test_live_resend_new_lead_email() -> None:
+    """Sends ONE real new_lead email to the bizvision handoff address.
+
+    Check by hand: it arrives, is not in spam, From is the notify subdomain and Reply goes to
+    info@bizvision.fi. Run: `uv run pytest -m live -k resend`.
+    """
+    from datetime import UTC, datetime
+
+    from core.notify.leads import NewLead, TranscriptLine, send_new_lead
+    from core.notify.sender import ResendSender
+
+    settings = get_settings()
+    if not settings.resend_api_key:
+        pytest.skip("RESEND_API_KEY not set")
+    lead = NewLead(
+        tenant_name="BizVision Oy",
+        handoff_email="info@bizvision.fi",
+        language="fi",
+        name="TESTI Testaaja (live-testi, ei oikea lead)",
+        email="testaaja@example.com",
+        phone=None,
+        message="Tämä on automaattisen live-testin lähettämä viesti. Voit poistaa sen.",
+        page_url="https://www.bizvision.fi/",
+        consent_at=datetime.now(UTC),
+        privacy_notice_version="test",
+        transcript=[
+            TranscriptLine("user", "Mitä palveluita tarjoatte?"),
+            TranscriptLine("assistant", "Tarjoamme tekoälyautomaatiota [1]."),
+        ],
+    )
+    sender = ResendSender(settings.resend_api_key, settings.email_from)
+    res = await send_new_lead(sender, lead, attempts=1)
+    assert res.ok and res.provider_id
