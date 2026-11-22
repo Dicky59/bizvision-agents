@@ -1,0 +1,32 @@
+# FAQ entries for the `bizvision` demo tenant that are waiting for real values.
+# Split out of faq/bizvision.yaml. Replace the {{PLACEHOLDERS}} (listed in the comment block
+# that used to head that file), then move the entries back and import.
+#   {{PRICE_ASSISTANT}}, {{PRICE_EMAIL_AGENT}}, {{PRICE_REPORTING}},
+#   {{PRICE_MAINTENANCE_MONTHLY}}, {{DELIVERY_TIME}}
+# Do NOT import this file as-is: `bv faq import` refuses unfilled placeholders.
+
+- q: Paljonko paketit maksavat?
+  a: >-
+    AI-asiakaspalvelija, sähköpostiagentti ja raportointiautomaatio myydään kiinteähintaisina
+    paketteina, joihin kuuluu kuukausittainen ylläpitomaksu. Hinnat: AI-asiakaspalvelija
+    {{PRICE_ASSISTANT}}, sähköpostiagentti {{PRICE_EMAIL_AGENT}}, raportointiautomaatio
+    {{PRICE_REPORTING}}. Kuukausittainen ylläpitomaksu on {{PRICE_MAINTENANCE_MONTHLY}}.
+    Ilmaisessa auditoinnissa saat selkeän hinnan ennen kuin mitään rakennetaan.
+
+- q: Kauanko toteutus kestää?
+  a: >-
+    Toteutusaika riippuu paketista ja laajuudesta. Tyypillinen toimitusaika on
+    {{DELIVERY_TIME}}. Tarkka aikataulu sovitaan ennen työn aloittamista.
+
+- q: How much do the packages cost?
+  a: >-
+    The AI customer-service assistant, the email agent and reporting automation are sold as
+    fixed-price packages that include a monthly maintenance fee. Prices: AI customer-service
+    assistant {{PRICE_ASSISTANT}}, email agent {{PRICE_EMAIL_AGENT}}, reporting automation
+    {{PRICE_REPORTING}}. The monthly maintenance fee is {{PRICE_MAINTENANCE_MONTHLY}}. In the
+    free audit you get a clear price before anything is built.
+
+- q: How long does implementation take?
+  a: >-
+    Implementation time depends on the package and the scope. The typical delivery time is
+    {{DELIVERY_TIME}}. The exact schedule is agreed before work begins.

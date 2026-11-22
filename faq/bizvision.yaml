@@ -1,19 +1,18 @@
 # FAQ for the `bizvision` demo tenant (public business information, fine to commit).
 #
-# DRAFT: contains {{PLACEHOLDERS}} that must be replaced with real values before import:
-#   {{PRICE_ASSISTANT}}            price of the AI customer-service assistant package
-#   {{PRICE_EMAIL_AGENT}}          price of the email agent package
-#   {{PRICE_REPORTING}}            price of the reporting automation package
-#   {{PRICE_MAINTENANCE_MONTHLY}}  monthly maintenance fee
-#   {{DELIVERY_TIME}}              typical delivery time
-# `bv faq import` refuses a file that still contains unfilled placeholders, so a visitor can
-# never be shown "{{PRICE_ASSISTANT}}".
-#
 # Import:  uv run bv faq import bizvision faq/bizvision.yaml
-# Every entry exists in Finnish and English. Facts about the free audit and the project process
-# come from bizvision.fi; the package descriptions come from docs/specs; please review them.
+# Every entry exists in Finnish and English. Entries still waiting for real values (prices,
+# delivery time) live in faq/bizvision-pending.yaml.
 
 # ------------------------------------------------------------------ Finnish
+- q: Mitä palveluita tarjoatte?
+  a: >
+    BizVisionin palvelut ovat:
+    tekoälyagentit ja automaatio (esim. sähköpostien käsittely, raportointi, dokumenttien käsittely),
+    verkkosovellukset ja taustajärjestelmät,
+    mobiilisovellukset iOS:lle ja Androidille (React Native, Kotlin),
+    sekä tekninen konsultointi ja arkkitehtuuri.
+    Lisäksi tarjoamme ilmaisen 20–30 minuutin tekoälyauditoinnin.
 
 - q: Mitä AI-asiakaspalvelija on?
   a: >-
@@ -39,19 +38,6 @@
     Raportointiautomaatio kokoaa tiedot yrityksesi tietolähteistä ja kirjoittaa niistä
     säännöllisen raportin tekoälyn avulla. Tavoitteena on saman päivän automaattiraportti
     viikon manuaalisen taulukkotyön sijaan.
-
-- q: Paljonko paketit maksavat?
-  a: >-
-    AI-asiakaspalvelija, sähköpostiagentti ja raportointiautomaatio myydään kiinteähintaisina
-    paketteina, joihin kuuluu kuukausittainen ylläpitomaksu. Hinnat: AI-asiakaspalvelija
-    {{PRICE_ASSISTANT}}, sähköpostiagentti {{PRICE_EMAIL_AGENT}}, raportointiautomaatio
-    {{PRICE_REPORTING}}. Kuukausittainen ylläpitomaksu on {{PRICE_MAINTENANCE_MONTHLY}}.
-    Ilmaisessa auditoinnissa saat selkeän hinnan ennen kuin mitään rakennetaan.
-
-- q: Kauanko toteutus kestää?
-  a: >-
-    Toteutusaika riippuu paketista ja laajuudesta. Tyypillinen toimitusaika on
-    {{DELIVERY_TIME}}. Tarkka aikataulu sovitaan ennen työn aloittamista.
 
 - q: Miten projekti etenee?
   a: >-
@@ -83,7 +69,23 @@
     Tapaamme mielellämme kasvotusten Helsingissä tai videopuhelun välityksellä — sen mukaan,
     mikä sinulle sopii parhaiten.
 
+- q: Paljonko palvelunne maksavat?
+  a: >-
+    Hinnoittelemme jokaisen projektin kiinteällä hinnalla tarpeen mukaan. Saat selkeän hinnan
+    ilmaisen 20–30 minuutin tekoälyauditoinnin jälkeen, ennen kuin mitään rakennetaan.
+
+- q: Teettekö hakukoneoptimointia (SEO)?
+  a: >-
+    Emme tee hakukoneoptimointia itse. Kun projekti tarvitsee erikoisosaamista, kuten SEO:ta
+    tai visuaalista suunnittelua, tuomme mukaan luotettuja kumppaneita verkostostamme.
+
 # ------------------------------------------------------------------ English
+
+- q: What services do you offer?
+  a: >
+    BizVision offers AI agents and automation (e.g. email handling, reporting, document processing),
+    web applications and backends, mobile apps for iOS and Android (React Native, Kotlin),
+    and technical consulting and architecture. We also offer a free 20–30 minute AI audit.
 
 - q: What is the AI customer-service assistant?
   a: >-
@@ -109,19 +111,6 @@
     Reporting automation pulls data from your data sources and uses AI to write a regular
     report from it. The goal is a same-day automated report instead of a week of manual
     spreadsheet work.
-
-- q: How much do the packages cost?
-  a: >-
-    The AI customer-service assistant, the email agent and reporting automation are sold as
-    fixed-price packages that include a monthly maintenance fee. Prices: AI customer-service
-    assistant {{PRICE_ASSISTANT}}, email agent {{PRICE_EMAIL_AGENT}}, reporting automation
-    {{PRICE_REPORTING}}. The monthly maintenance fee is {{PRICE_MAINTENANCE_MONTHLY}}. In the
-    free audit you get a clear price before anything is built.
-
-- q: How long does implementation take?
-  a: >-
-    Implementation time depends on the package and the scope. The typical delivery time is
-    {{DELIVERY_TIME}}. The exact schedule is agreed before work begins.
 
 - q: How does a project work?
   a: >-
@@ -150,3 +139,13 @@
   a: >-
     You can send a message to info@bizvision.fi or get in touch through the website. We are
     happy to meet in person in Helsinki or over a video call — whatever is easiest for you.
+
+- q: How much do your services cost?
+  a: >-
+    Every project is priced at a fixed price based on your needs. You get a clear price after a
+    free 20–30 minute AI audit, before anything is built.
+
+- q: Do you do SEO?
+  a: >-
+    We don't do SEO in-house. When a project needs specialist skills such as SEO or visual
+    design, we bring in trusted partners from our network.

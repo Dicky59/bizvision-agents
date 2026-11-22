@@ -35,8 +35,10 @@ def test_every_entry_exists_in_both_languages(entries) -> None:
     assert len(entries) % 2 == 0
     fi, en = entries[:half], entries[half:]
     # Finnish block first, English block second, same order: crude but catches a forgotten entry
-    assert all("ä" in e.answer or "ö" in e.answer or "ja" in e.answer.split() for e in fi)
-    assert all(" the " in f" {e.answer} " or " and " in f" {e.answer} " for e in en)
+    finnish = {"ja", "tai", "on", "ei", "kun"}
+    assert all("ä" in e.answer or "ö" in e.answer or finnish & set(e.answer.split()) for e in fi)
+    english = {"the", "and", "is", "you", "your", "we", "our"}
+    assert all(english & set(e.answer.lower().split()) for e in en)
 
 
 def test_placeholders_are_well_formed(entries) -> None:

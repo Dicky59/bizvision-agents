@@ -65,7 +65,8 @@ def test_bizvision_eval_set_is_valid_and_covers_the_spec() -> None:
     by_id = {c.id: c for c in cases}
     assert by_id["seo-fi"].expect == ["answer"] and by_id["seo-fi"].not_facts
     assert by_id["followup-audit-price-fi"].history  # needs the previous turn
-    assert by_id["price-assistant-fi"].expect == ["dont_know"]  # until the FAQ is imported
+    assert by_id["price-assistant-fi"].expect == ["answer"]  # generic fixed-price FAQ answer
+    assert by_id["maintenance-fee-fi"].expect == ["dont_know"]  # still no published fee
     assert any(c.inject_context for c in injection)  # context-borne injection is covered
     assert {"fi", "en"} <= {
         ("fi" if "ä" in c.question.lower() or "ö" in c.question else "en") for c in cases

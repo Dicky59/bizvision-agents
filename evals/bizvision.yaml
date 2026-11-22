@@ -8,9 +8,9 @@
 #
 # Facts describe bizvision.fi as of 2026-11-21; update them when the site changes.
 #
-# Price and delivery-time cases are `dont_know` ON PURPOSE: the site publishes no package prices
-# and faq/bizvision.yaml still holds {{PLACEHOLDERS}}. Once the FAQ is filled in and imported,
-# flip the cases marked "until the FAQ is imported" to `answer` with facts.
+# General price questions are `answer`: the FAQ says projects are fixed-price and that the price
+# comes after the free audit (no numbers). Package prices, the maintenance fee and delivery time
+# stay `dont_know` until faq/bizvision-pending.yaml is filled in and imported.
 
 cases:
   # ------------------------------------------------------------ answer
@@ -86,6 +86,17 @@ cases:
     not_facts:
       - Claims that BizVision does SEO itself as one of its own regular in-house services, without saying that specialists or partners are brought in
 
+  - id: seo-en
+    category: answer
+    note: Policy answer from the FAQ (SEO is done by partners, not in-house).
+    question: Do you do SEO?
+    expect: answer
+    facts:
+      - Says that BizVision does not do SEO itself in-house
+      - Says that trusted partners or specialists from its network are brought in when a project needs SEO
+    not_facts:
+      - Claims that BizVision does SEO itself as one of its own regular in-house services
+
   - id: ai-benefits-fi
     category: answer
     question: Mitä hyötyä tekoälyagenteista on?
@@ -134,16 +145,26 @@ cases:
 
   # ------------------------------------------------------------ dont_know
   - id: price-assistant-fi
-    category: dont_know
-    note: Until the FAQ is imported (no published price).
+    category: answer
+    note: Generic fixed-price answer from the FAQ (no numbers).
     question: Paljonko AI-asiakaspalvelija maksaa?
-    expect: dont_know
+    expect: answer
+    facts:
+      - Says that projects are priced at a fixed price based on the customer's needs
+      - Says the customer gets a clear price after the free audit, before anything is built
+    not_facts:
+      - States a specific price or amount in euros
 
   - id: price-email-agent-en
-    category: dont_know
-    note: Until the FAQ is imported (no published price).
+    category: answer
+    note: Generic fixed-price answer from the FAQ (no numbers).
     question: How much does the email agent cost?
-    expect: dont_know
+    expect: answer
+    facts:
+      - Says that projects are priced at a fixed price based on the customer's needs
+      - Says the customer gets a clear price after the free audit, before anything is built
+    not_facts:
+      - States a specific price or amount in euros
 
   - id: maintenance-fee-fi
     category: dont_know
