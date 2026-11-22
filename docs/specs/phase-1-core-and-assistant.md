@@ -386,8 +386,9 @@ Requirements learned from the M3 live retrieval run on bizvision.fi (see ADR-004
 - **Calibrate `min_relevance` on the eval set.** Calibrated on the M4 eval data to 0.31; IDF-weighted full-text search was not needed (ADR-005).
 *Accept:* `bv chat bizvision` works in Finnish and English; evals ≥ 90 % pass, 100 % injection cases.
 
-**M5 — Public API**
+**M5 — Public API** ✅ *done* (see ADR-006)
 Widget config, SSE chat endpoint, leads endpoint + email notification, admin endpoints, origin/CORS checks, rate limiting.
+Decisions made during M5: the visitor never gets a confirmation email (only the tenant is notified; Reply-To is `handoff.email`); honeypot hits get the same 201 as real leads; `handoff.include_transcript` and `handoff.lead_retention_days` (default 365) are per-tenant settings; `bv cleanup` deletes expired conversations and leads; `bv leads delete <email>` handles erasure requests; client IP behind a proxy comes from `TRUSTED_PROXY_COUNT`; no captcha until abuse appears.
 *Accept:* integration tests for SSE event sequence, origin rejection, lead consent validation, rate-limit 429.
 
 **M6 — Widget**

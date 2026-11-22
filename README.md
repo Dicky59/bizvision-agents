@@ -72,6 +72,33 @@ Real API calls (Haiku run: about EUR 0.04; Sonnet about 20x). Prints pass rate, 
 TTFT median/p90, cost, flaky cases and a min_relevance calibration table; exits 1 below target
 (>= 90 % pass, 100 % injection). Cases live in `evals/<slug>.yaml`.
 
+## Public API
+
+```bash
+uv run uvicorn api.main:app --reload --port 8000
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/widget/{tenant}/config` | Public widget config (whitelisted fields) |
+| `POST /v1/assistant/{tenant}/chat` | SSE stream: `meta`, `token`*, `sources`, `lead_form`, `done`, `error` |
+| `POST /v1/assistant/{tenant}/leads` | Lead with explicit consent; the tenant is notified by email |
+| `/v1/admin/...` | Tenants, ingest, files, FAQ, usage, leads (`Authorization: Bearer $ADMIN_API_KEY`) |
+| `GET /healthz` | Liveness |
+
+Public routes require an `Origin` listed in the tenant's `allowed_origins`. Relevant env vars:
+`RESEND_API_KEY`, `EMAIL_FROM` (sending subdomain, e.g. `BizVision AI <ai@notify.bizvision.fi>`),
+`ADMIN_API_KEY` (admin routes answer 503 while it is empty), `TRUSTED_PROXY_COUNT` (1 behind Caddy).
+
+```bash
+uv run bv leads list bizvision                 # newest first; PENDING = notification not sent
+uv run bv leads notify-pending bizvision       # retry failed notification emails
+uv run bv leads delete bizvision a@example.com # erasure request (lead + its conversation)
+uv run bv cleanup                              # retention: expired conversations and old leads
+uv run bv usage bizvision --month 2026-11
+uv run pytest -m live -k resend                # sends ONE real test email to the handoff address
+```
+
 ## Production database (Neon)
 
 Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);
