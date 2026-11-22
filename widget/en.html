@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget test page</title>
+    <style>
+      /* Deliberately hostile host CSS: the widget must be unaffected (Shadow DOM isolation). */
+      * {
+        font-family: "Comic Sans MS", cursive !important;
+        color: hotpink !important;
+        letter-spacing: 4px !important;
+      }
+      button,
+      input,
+      textarea {
+        border: 5px dotted lime !important;
+        background: black !important;
+      }
+      body {
+        max-width: 720px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Widget test page</h1>
+      <p>The widget below is mounted from <code>src/main.ts</code> against the local API.</p>
+      <p><a href="/">Finnish variant</a> | English variant (bottom-left)</p>
+    </main>
+    <script
+      type="module"
+      src="/src/main.ts"
+      data-tenant="bizvision"
+      data-api="http://localhost:8000"
+      data-lang="en"
+      data-position="bottom-left"
+    ></script>
+  </body>
+</html>

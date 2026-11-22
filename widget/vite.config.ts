@@ -4,7 +4,6 @@ export default defineConfig({
   server: { port: 5173, strictPort: true },
   build: {
     target: "es2020",
-    minify: "esbuild",
     cssCodeSplit: false,
     lib: {
       entry: "src/main.ts",
