@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "e2e/**", "scripts/**", "playwright.config.ts"] },
+  { ignores: ["dist", "node_modules", "scripts/**", "test-results"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { rules: { "no-eval": "error" } },

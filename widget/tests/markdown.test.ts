@@ -51,6 +51,12 @@ describe("renderMarkdown", () => {
     expect(html("Ei lähteitä [1].", [])).toBe("<p>Ei lähteitä.</p>");
   });
 
+  it("collapses back-to-back citations of the same page", () => {
+    expect(html("Fakta [1][2].").match(/class="cite"/g)).toHaveLength(1); // 1 and 2 are one page
+    expect(html("Fakta [1][4].").match(/class="cite"/g)).toHaveLength(2);
+    expect(html("Fakta [1] ja [2].").match(/class="cite"/g)).toHaveLength(2); // apart: both kept
+  });
+
   it("hides an incomplete trailing marker while streaming", () => {
     expect(html("Vastaus [", SRC, true)).toBe("<p>Vastaus</p>");
     expect(html("Vastaus [1, ", SRC, true)).toBe("<p>Vastaus</p>");
@@ -66,6 +72,25 @@ describe("renderMarkdown", () => {
     const out = html("[1](https://a.fi)");
     expect(out).toContain('href="https://a.fi/"');
     expect(out).not.toContain('class="cite"');
+  });
+});
+
+describe("real answer shape", () => {
+  it("renders an intro line directly followed by a bullet list with adjacent markers", () => {
+    const text = [
+      "BizVision tarjoaa seuraavia palveluita:",
+      "- **Agentit**: raportit [1][2].",
+      "- **Verkkosovellukset**: portaalit [2].",
+      "- **Konsultointi**: arkkitehtuuri [6].",
+    ].join("\n");
+    const sources: Source[] = [
+      { ns: [1, 2], title: "A", url: "https://a.fi/" },
+      { ns: [6], title: "B", url: "https://a.fi/b" },
+    ];
+    const out = html(text, sources);
+    expect(out.startsWith("<p>BizVision tarjoaa seuraavia palveluita:</p><ul><li>")).toBe(true);
+    expect(out.match(/<li>/g)).toHaveLength(3);
+    expect(out).toContain("<strong>Agentit</strong>");
   });
 });
 

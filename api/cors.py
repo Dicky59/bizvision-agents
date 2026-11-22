@@ -20,6 +20,7 @@ _PATH = re.compile(r"^/v1/(?:widget|assistant)/([^/]+)/")
 ALLOW_METHODS = b"GET, POST, OPTIONS"
 ALLOW_HEADERS = b"content-type"
 MAX_AGE = b"600"
+EXPOSE_HEADERS = b"Retry-After"  # else browser JS cannot read it on a cross-origin 429
 
 
 class TenantCORSMiddleware:
@@ -37,7 +38,11 @@ class TenantCORSMiddleware:
             await self.app(scope, receive, send)
             return
 
-        cors = [(b"access-control-allow-origin", origin.encode("latin-1")), (b"vary", b"Origin")]
+        cors = [
+            (b"access-control-allow-origin", origin.encode("latin-1")),
+            (b"access-control-expose-headers", EXPOSE_HEADERS),
+            (b"vary", b"Origin"),
+        ]
         if scope["method"] == "OPTIONS":
             await send(
                 {

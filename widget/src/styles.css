@@ -4,6 +4,9 @@
 }
 
 .bv {
+  /* Reset everything inherited from the host page (letter-spacing, text-transform, ...). */
+  all: initial;
+  display: block;
   --bv-bg: #ffffff;
   --bv-ink: #1a1a1a;
   --bv-muted: #595959;

@@ -16,6 +16,7 @@ async def test_config_for_allowed_origin(sessionmaker: SM) -> None:
     assert r.status_code == 200
     assert r.headers["access-control-allow-origin"] == ORIGIN
     assert "origin" in r.headers["vary"].lower()
+    assert r.headers["access-control-expose-headers"] == "Retry-After"  # widget reads it on 429
     body = r.json()
     assert body["greeting"] == {"fi": "Hei!"}
     assert body["privacy_notice_version"] == "v1"

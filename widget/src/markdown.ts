@@ -41,6 +41,8 @@ function sourceIndex(sources: Source[], n: number): number {
 
 function inline(doc: Document, parent: Node, text: string, sources: Source[]): void {
   let last = 0;
+  let lastCite = -1; // source index of the previous citation and where its marker ended
+  let lastCiteEnd = -1;
   INLINE.lastIndex = 0;
   for (let m = INLINE.exec(text); m !== null; m = INLINE.exec(text)) {
     if (m.index > last) parent.appendChild(doc.createTextNode(text.slice(last, m.index)));
@@ -62,10 +64,14 @@ function inline(doc: Document, parent: Node, text: string, sources: Source[]): v
         if (!s) return;
         const href = safeHttpUrl(s.url);
         if (!href) return;
+        // "[1][1]" (two chunks of one page, cited back to back) shows a single [1].
+        if (lead === "" && k === 0 && m.index === lastCiteEnd && i === lastCite) return;
         if (k === 0 && lead) parent.appendChild(doc.createTextNode(lead));
         const a = link(doc, href, `[${i + 1}]`, "cite");
         a.setAttribute("aria-label", s.title);
         parent.appendChild(a);
+        lastCite = i;
+        lastCiteEnd = last;
       });
     }
   }
