@@ -152,3 +152,10 @@ def test_cleanup_deletes_expired_leads_only(env: Env) -> None:
 def test_unknown_tenant_fails_cleanly(env: Env) -> None:
     r = env.run("leads", "list", "does-not-exist", ok=False)
     assert r.exit_code == 1 and "not found" in r.output
+
+
+def test_usage_command(env: Env) -> None:
+    out = env.run("usage", env.slug).output
+    assert "(no usage)" in out and "of EUR 30.00 budget" in out
+    bad = env.run("usage", env.slug, "--month", "2026-13", ok=False)
+    assert bad.exit_code == 1 and "YYYY-MM" in bad.output

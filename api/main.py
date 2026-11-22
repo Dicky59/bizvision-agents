@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from api.cors import TenantCORSMiddleware, make_origin_check
 from api.deps import ApiDeps
 from api.errors import install_error_handlers
-from api.routers import assistant, leads, widget
+from api.routers import admin, assistant, leads, widget
 from core.config import get_settings
 
 
@@ -21,6 +21,7 @@ def create_app(deps: ApiDeps | None = None) -> FastAPI:
     app.include_router(widget.router)
     app.include_router(assistant.router)
     app.include_router(leads.router)
+    app.include_router(admin.router)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
