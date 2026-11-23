@@ -10,8 +10,15 @@ from core.config import get_settings
 
 
 def create_app(deps: ApiDeps | None = None) -> FastAPI:
-    logging.basicConfig(level=get_settings().log_level)
-    app = FastAPI(title="bizvision-agents")
+    settings = get_settings()
+    logging.basicConfig(level=settings.log_level)
+    docs = settings.enable_docs
+    app = FastAPI(
+        title="bizvision-agents",
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
     app.state.deps = deps or ApiDeps()
     install_error_handlers(app)
     app.add_middleware(

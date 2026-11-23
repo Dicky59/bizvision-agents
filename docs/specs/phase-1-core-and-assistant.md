@@ -398,7 +398,7 @@ Decisions made during M6: the visible thread and conversation id live in `sessio
 
 **M7 — Deploy & go live**
 **Checklist before go-live:** remove `localhost` origins (`:3000`, `:5173`) from the production tenant config; set `TRUSTED_PROXY_COUNT=1`; production `ADMIN_API_KEY` in the host's secret store; privacy notice covers all processors (Anthropic, OpenAI, Resend, Neon, API host) and `privacy_notice_version` matches it; the consent wording in `widget/src/i18n/{fi,en}.json` is reviewed together with the notice; the bizvision site's CSP allows `script-src https://agents.bizvision.fi` and `connect-src https://agents.bizvision.fi`; the old ChatWidget and its `api/chat` route are removed from the bizvision site (separate repo); the widget is built (`cd widget && npm ci && npm run build`) in the Dockerfile so `/widget.v1.js` exists; real iPhone and Android check of the widget; the bizvision `primary_color` is set from the site's design tokens.
-Neon project (EU, Frankfurt) with `main` and `dev` branches; Dockerfile, production compose (`api` + `caddy`), weekly `pg_dump` script, deploy script/workflow; embed on bizvision.fi (change in the `bizvision` repo).
+Neon project (EU, Frankfurt, project `lucky-haze-24832414`) with `production` (default) and `dev` branches; Dockerfile, production compose (`api` + `caddy`), weekly `pg_dump` script, deploy script/workflow; embed on bizvision.fi (change in the `bizvision` repo).
 *Accept:* migrations applied to Neon `main`; `https://agents.bizvision.fi/healthz` OK; widget live on bizvision.fi; a test lead arrives at info@bizvision.fi; monthly usage visible via `bv usage bizvision`.
 
 ---

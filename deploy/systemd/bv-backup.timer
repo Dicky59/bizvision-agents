@@ -1,0 +1,10 @@
+[Unit]
+Description=BizVision agents: weekly database backup
+
+[Timer]
+OnCalendar=Sun *-*-* 02:30:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

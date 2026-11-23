@@ -13,6 +13,9 @@ uv run alembic upgrade head
 uv run uvicorn api.main:app --reload --port 8000   # GET /healthz -> 200
 ```
 
+Locally, create the tenant from `tenants/bizvision.local.yaml` (gitignored; adds the localhost origins), not the committed production `tenants/bizvision.yaml`:
+`uv run bv tenants create bizvision --config tenants/bizvision.local.yaml`.
+
 ## Quality gates
 
 ```bash
@@ -122,9 +125,18 @@ npm run a11y:lighthouse                       # accessibility >= 95 (dev server 
 LIVE=1 npx playwright test e2e/live.spec.ts --project=chromium   # real API and LLM, never sends a lead
 ```
 
-The API serves the built file at `/widget.v1.js`; add the site to the tenant's `allowed_origins` (`http://localhost:5173` is there for the dev pages and must be removed before go-live).
+The API serves the built file at `/widget.v1.js`; add the site to the tenant's `allowed_origins` (for the dev pages use the gitignored `tenants/bizvision.local.yaml`, which adds the localhost origins; the committed `tenants/bizvision.yaml` is the production config).
 
 ## Production database (Neon)
 
-Use Neon's direct connection string as-is (`?sslmode=require&channel_binding=require`);
-`core.db.url.normalize_db_url` converts it for asyncpg. See `docs/decisions.md` (ADR-001).
+Use Neon's direct connection string with the `postgresql+asyncpg://` scheme and its query as-is
+(`?sslmode=require&channel_binding=require`); `core.db.url.normalize_db_url` converts the query for
+asyncpg. The default branch is `production`. See `docs/decisions.md` (ADR-001).
+
+## Deployment (Hetzner + Caddy)
+
+`Dockerfile` (builds the widget too), `docker-compose.prod.yml` (`api` + `caddy`), `deploy/`
+(Caddyfile, env template, systemd timers) and `scripts/` (`server-bootstrap.sh`,
+`server-lockdown-ssh.sh`, `deploy.sh`, `backup.sh`, `smoke.sh`). The step-by-step guide is
+`docs/runbook-m7.md`; the decisions are in ADR-008. Set `ENABLE_DOCS=true` in your local `.env`
+if you want `/docs`.

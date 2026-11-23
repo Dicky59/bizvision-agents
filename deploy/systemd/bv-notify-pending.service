@@ -1,0 +1,12 @@
+[Unit]
+Description=BizVision agents: retry failed lead notification emails
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+SupplementaryGroups=docker
+WorkingDirectory=/srv/bizvision-agents
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml run --rm -T api bv leads notify-pending bizvision

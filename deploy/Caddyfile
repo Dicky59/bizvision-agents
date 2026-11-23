@@ -1,0 +1,31 @@
+{
+	# Certificate expiry notices (Let's Encrypt). Already public on the website.
+	email info@bizvision.fi
+}
+
+agents.bizvision.fi {
+	# Compress only static/JSON responses. Never compress the SSE chat stream: compression
+	# buffers and delays tokens.
+	@compressible path /widget.v1.js /v1/widget/*
+	encode @compressible zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# CORS is done by the app, per tenant (allowed_origins). Do not add it here.
+	# Caddy is the ONLY proxy in front of the API: it overwrites any client-supplied
+	# X-Forwarded-For with the real peer address, and the app reads the rightmost entry
+	# (TRUSTED_PROXY_COUNT=1). Do not add `trusted_proxies` here without changing that count.
+	reverse_proxy api:8000 {
+		flush_interval -1 # stream SSE tokens immediately
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

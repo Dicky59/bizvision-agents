@@ -1,0 +1,50 @@
+# Production stack on the Hetzner VM: api + caddy. The database is Neon (no db service here).
+# Run from /srv/bizvision-agents with:  docker compose -f docker-compose.prod.yml <cmd>
+# Admin tasks:  docker compose -f docker-compose.prod.yml run --rm api bv <command>
+name: bizvision
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    build: .
+    image: bizvision-agents:prod
+    env_file: .env # server-only file, never in git
+    restart: unless-stopped
+    expose:
+      - "8000" # reachable by caddy on the compose network only, not published to the host
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"
+      interval: 15s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+    logging: *logging
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificates: keep, or Let's Encrypt rate limits bite
+      - caddy_config:/config
+    logging: *logging
+
+volumes:
+  caddy_data:
+  caddy_config:

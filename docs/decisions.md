@@ -19,8 +19,11 @@ The application already provides its own API (FastAPI), data access (SQLAlchemy 
 - **Production:** Neon, EU region (Frankfurt), paid plan with scale-to-zero disabled on the production branch.
 - **Local development and tests:** Postgres 16 + pgvector in Docker Compose.
 - The API connects with Neon's **direct (non-pooled)** connection string and its own SQLAlchemy pool; Alembic also uses the direct connection.
-- Neon branches: `main` (production), `dev` (shared development), short-lived branches for testing risky migrations against a copy of production data.
+- Neon branches: `production` (the project's default branch; originally planned as `main`), `dev` (shared development), short-lived branches for testing risky migrations against a copy of production data. Project id `lucky-haze-24832414`, AWS eu-central-1, Postgres 16.
 - Independent weekly `pg_dump` to EU object storage in addition to Neon's point-in-time restore.
+
+### Update 2026-11-23
+The project runs on the **free plan** until go-live. Scale-to-zero and the short history window are acceptable for development only: **upgrade to a paid plan and disable scale-to-zero on `production` before go-live** (M7 checklist). Branch naming corrected to `production` (see Decision).
 
 ### Consequences
 - No database server to operate; the API VM only runs `api` + `caddy`.
@@ -222,4 +225,29 @@ The widget runs on customer websites we do not control, so it must not break the
 - The widget's own UI strings follow the page language (`data-lang` or `<html lang>`); the assistant's answers follow the visitor's language, so they can differ.
 - Embedding needs the host site's CSP to allow the script and the API (an M7 checklist item).
 - Mid-stream failures keep the partial answer; there is no automatic reconnect.
+
+---
+
+## ADR-008 — M7: production deployment on Hetzner (2026-11-23)
+
+### Context
+M1–M6 are done and the platform runs only locally. M7 puts the API at `https://agents.bizvision.fi`: one Hetzner Cloud CX23 (Helsinki, 2 vCPU, 4 GB) running `api` + `caddy` in Docker Compose, the database on Neon (ADR-001). The repository is public, so nothing environment-specific or secret may live in it. The service has one operator and one instance.
+
+### Decisions
+- **Build on the server**, no registry: `scripts/deploy.sh` (run from the laptop) does `git fetch` + checkout of a pushed ref, `docker compose build`, `alembic upgrade head`, `up -d`, and waits for the container health check. Rollback is the same script with the previous SHA; migrations are forward-only, so rolling back across one needs a manual `alembic downgrade` first (the script warns). GitHub Actions can later wrap the same script over SSH; not now.
+- **Exactly one layer interprets `X-Forwarded-For`: the application.** uvicorn runs with `--no-proxy-headers` (its default is on, trusting `127.0.0.1`), so `request.client.host` is Caddy's address, and `api.ratelimit.client_ip` takes the n-th entry from the right with `TRUSTED_PROXY_COUNT=1`. Caddy is the only proxy and overwrites any client-supplied `X-Forwarded-For` with the real peer address, so the rightmost entry is the visitor. Chosen over uvicorn's `--forwarded-allow-ips` because the app logic is already specified, tested, hop-count based (a CDN later means changing one number) and independent of container IP ranges. Guarded by `tests/test_deploy_config.py` (spoofed header, Dockerfile `CMD`, no `trusted_proxies` in the Caddyfile). Adding a second proxy means revisiting both the count and that test.
+- **One uvicorn process** (no `--workers`): the rate limiter is in-memory (ADR-006).
+- **Production tenant config is `tenants/bizvision.yaml` without localhost origins.** Local development uses a gitignored `tenants/bizvision.local.yaml` (same content plus `:3000` and `:5173`). No environment branches in code.
+- **Secrets only in `/srv/bizvision-agents/.env`** on the server (mode 600), with **separate production keys**: Anthropic workspace `bizvision-agents-prod` with its own spend limit, own OpenAI and Resend keys, own `ADMIN_API_KEY`. Dev keys never go on the server. Template: `deploy/env.production.example` (names only).
+- **`/docs`, `/redoc`, `/openapi.json` are off** unless `ENABLE_DOCS=true` (local development).
+- **Host hardening**: non-root `deploy` user, key-only SSH, root login off, Hetzner cloud firewall (22, 80, 443/tcp, 443/udp for HTTP/3), unattended security upgrades with a 04:00 UTC reboot window. Docker-published ports bypass `ufw`, so the cloud firewall is the control; only Caddy publishes ports.
+- **Scheduling with systemd timers** (not cron): daily `bv cleanup`, 15-minute `bv leads notify-pending bizvision`, weekly `pg_dump` (`scripts/backup.sh`, PG16 client in Docker, 28-day retention, `/var/backups/bizvision`).
+- **Backups: Neon PITR on the paid plan plus the weekly on-server dump is enough for now.** There is no off-box copy yet; **add one (likely a Hetzner Storage Box) before the first paying customer tenant**, and before any tenant data other than BizVision's own is stored.
+- **Monitoring**: UptimeRobot (free) on `/healthz`.
+
+### Consequences
+- The server is a single point of failure; recovery is rebuilding it from `scripts/server-bootstrap.sh` plus the `.env` file kept in a password manager, and re-running deploy. The database is not on it.
+- Dumps contain personal data and live on the same server as the app until the off-box target exists; the 28-day retention is within the 90-day conversation retention.
+- Caddy access logs contain client IP addresses; they are kept only in Docker's rotated log files (3 × 10 MB).
+- Hetzner Online GmbH becomes a processor and must be in the privacy notice before go-live.
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=BizVision agents: weekly pg_dump of the Neon database
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+Group=deploy
+SupplementaryGroups=docker
+WorkingDirectory=/srv/bizvision-agents
+ExecStart=/bin/bash /srv/bizvision-agents/scripts/backup.sh

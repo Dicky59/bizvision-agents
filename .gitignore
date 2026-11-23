@@ -8,3 +8,4 @@ widget/dist/
 .ruff_cache/
 .pyright/
 *.egg-info/
+tenants/*.local.yaml

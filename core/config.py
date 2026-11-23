@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     trusted_proxy_count: int = 0
     log_level: str = "INFO"
+    enable_docs: bool = False  # serve /docs, /redoc, /openapi.json (local development only)
     eur_per_usd: float = 0.92
 
 

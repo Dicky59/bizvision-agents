@@ -1,0 +1,10 @@
+[Unit]
+Description=BizVision agents: daily retention cleanup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
