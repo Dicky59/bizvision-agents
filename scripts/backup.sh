@@ -24,7 +24,7 @@ mkdir -p "$OUT_DIR"
 trap 'rm -f "$tmp"' EXIT
 
 docker run --rm -e DUMP_URL postgres:16-alpine \
-  sh -c 'pg_dump --format=custom --no-owner --no-privileges "$DUMP_URL"' > "$tmp"
+  sh -c 'pg_dump --format=custom --no-owner --no-privileges "$DUMP_URL"' </dev/null > "$tmp"
 
 # Sanity: the archive must be readable and contain tables.
 docker run --rm -i postgres:16-alpine pg_restore --list < "$tmp" | grep -q "TABLE DATA" \

@@ -31,6 +31,9 @@ def create_app(deps: ApiDeps | None = None) -> FastAPI:
     app.include_router(leads.router)
     app.include_router(admin.router)
 
+    # HEAD too: `curl -I` and many uptime monitors use it. Hidden from the schema, since one
+    # handler listed under two methods gets a duplicate operation ID.
+    @app.head("/healthz", include_in_schema=False)
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}

@@ -26,7 +26,12 @@ if [ -z "${1:-}" ]; then
 fi
 
 echo "==> deploying $REF to $HOST"
-ssh "$HOST" bash -s -- "$APP_DIR" "$REF" <<'REMOTE'
+# The remote script arrives on the remote bash's stdin, so any command there that reads stdin
+# eats the remaining steps and the shell still exits 0. `compose run` does (-T only disables the
+# TTY): give it </dev/null. The final marker proves the script ran to its end.
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
+ssh "$HOST" bash -s -- "$APP_DIR" "$REF" <<'REMOTE' | tee "$log"
 set -euo pipefail
 APP_DIR="$1"; REF="$2"
 cd "$APP_DIR"
@@ -44,8 +49,8 @@ if ! git diff --quiet "$PREV" "$NEW" -- alembic/versions; then
   echo "      To roll back past them, run 'alembic downgrade' BEFORE deploying the old ref."
 fi
 C="docker compose -f docker-compose.prod.yml"
-$C build
-$C run --rm api alembic upgrade head
+$C build </dev/null
+$C run --rm -T api alembic upgrade head </dev/null
 $C up -d --remove-orphans
 echo -n "waiting for api to become healthy"
 for _ in $(seq 1 30); do
@@ -55,7 +60,14 @@ for _ in $(seq 1 30); do
 done
 [ "${status:-}" = "healthy" ] || { echo; echo "api is not healthy:"; $C logs --tail 50 api; exit 1; }
 echo "rollback with: scripts/deploy.sh $PREV"
+echo "remote steps done"
 REMOTE
+
+grep -qxF 'remote steps done' "$log" || {
+  echo "DEPLOY FAILED: the remote script stopped before its last step (output above)." >&2
+  echo "Check the containers on $HOST: docker compose -f docker-compose.prod.yml ps" >&2
+  exit 1
+}
 
 if [ -z "${SKIP_PUBLIC_CHECK:-}" ]; then
   echo "==> public health check: $PUBLIC_URL/healthz"

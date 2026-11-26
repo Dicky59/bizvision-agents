@@ -118,6 +118,9 @@ From your laptop, with the commit pushed to `origin`:
 scripts/deploy.sh
 ```
 
+The deploy succeeded only if the output ends with `remote steps done`, the public health check and
+`deployed.`
+
 Needs the DNS from Step 2 for the public health check (`SKIP_PUBLIC_CHECK=1` to skip it).
 Caddy fetches the certificate on first start: `ssh deploy@5.222.8.228 'cd /srv/bizvision-agents && docker compose -f docker-compose.prod.yml logs caddy | tail -n 30'`.
 
@@ -175,7 +178,7 @@ update ADR-008. Do one restore drill: create a throw-away Neon branch and
 `pg_restore --no-owner -d <branch-url> /var/backups/bizvision/bv-*.dump`.
 
 **Monitoring:** UptimeRobot (free) → HTTP(s) monitor on `https://agents.bizvision.fi/healthz`, 5-minute
-interval, alert to your email.
+interval, alert to your email. `/healthz` accepts both GET and HEAD.
 
 ## Step 9 — Production plan on Neon
 

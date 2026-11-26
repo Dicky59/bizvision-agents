@@ -52,6 +52,25 @@ def test_caddy_is_the_only_proxy_in_front() -> None:
     assert re.search(r"^TRUSTED_PROXY_COUNT=1$", env, re.MULTILINE)
 
 
+def test_remote_deploy_commands_cannot_eat_the_script() -> None:
+    """The remote part of deploy.sh is fed to `bash -s` on stdin. `compose run` attaches stdin
+    (also with -T), so without </dev/null it swallows the remaining steps and bash exits 0."""
+    script = (ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    heredoc = re.search(r"<<'REMOTE'[^\n]*\n(.*?)^REMOTE$(.*)", script, re.DOTALL | re.MULTILINE)
+    assert heredoc is not None
+    remote, local = heredoc.groups()
+    runs = [
+        line for line in remote.splitlines() if re.search(r"(\$C|docker( compose)?) run ", line)
+    ]
+    assert runs, "expected at least the migration step"
+    for line in runs:
+        assert " -T " in line, line
+        assert line.rstrip().endswith("</dev/null"), line
+    # A truncated remote run must fail locally: the marker is the last remote command.
+    assert remote.rstrip().splitlines()[-1] == 'echo "remote steps done"'
+    assert "grep -qxF 'remote steps done'" in local
+
+
 def test_production_env_template_has_no_secrets() -> None:
     env = (ROOT / "deploy" / "env.production.example").read_text(encoding="utf-8")
     for line in env.splitlines():

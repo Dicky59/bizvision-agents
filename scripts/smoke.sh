@@ -22,7 +22,7 @@ expect() { # expect <description> <want> <got>
 echo "TLS and basics"
 expect "healthz" 200 "$(code "$BASE/healthz")"
 expect "http redirects to https" 308 "$(code "http://${BASE#https://}/healthz")"
-hdr="$(curl -sI "$BASE/widget.v1.js")"
+hdr="$(curl -s -D - -o /dev/null "$BASE/widget.v1.js")" # GET: the route does not accept HEAD
 echo "$hdr" | head -n1 | grep -q 200 && ok "widget.v1.js served" || bad "widget.v1.js not 200"
 echo "$hdr" | grep -qi 'cache-control: public, max-age=86400' && ok "widget cache header" || bad "widget cache header"
 expect "/docs hidden" 404 "$(code "$BASE/docs")"
